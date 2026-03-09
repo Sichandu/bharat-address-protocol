@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+routes_db.json
+.env

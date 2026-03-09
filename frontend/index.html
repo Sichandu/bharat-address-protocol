@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bharat Address Protocol | BAP</title>
+    <style>
+        :root { --primary: #2563eb; --secondary: #10b981; --bg: #f8fafc; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
+        /* .card { background: white; padding: 2rem; border-radius: 20px; shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 450px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); } */
+        .grid-wrapper { position: relative; display: inline-block; margin: 20px 0; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; }
+        canvas { cursor: crosshair; display: block; }
+        .landmark { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); font-size: 20px; }
+        .menu-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        button { padding: 15px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 1rem; }
+        .btn-send { background: var(--primary); color: white; }
+        .btn-get { background: var(--secondary); color: white; }
+        .btn-action { background: #1e293b; color: white; width: 100%; margin-top: 10px; }
+        input { width: 90%; padding: 12px; margin: 10px 0; border: 2px solid #e2e8f0; border-radius: 8px; text-align: center; font-size: 1.2rem; }
+        .hidden { display: none; }
+        #countdown { font-size: 5rem; font-weight: 900; color: var(--primary); }
+        .turn-chips { color: #64748b; font-weight: bold; letter-spacing: 2px; margin-bottom: 10px; }
+        .success-box { background: #ecfdf5; color: #065f46; padding: 15px; border-radius: 10px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1 style="margin:0">BAP 🇮🇳</h1>
+    <p style="color:#64748b; margin-bottom:20px;">Digital Landmarks & Routes</p>
+
+    <div id="home-screen">
+        <div class="menu-btns">
+            <button class="btn-send" onclick="showScreen('send')">1. SEND<br><small>Create Route</small></button>
+            <button class="btn-get" onclick="showScreen('get')">2. GET<br><small>Follow Route</small></button>
+        </div>
+    </div>
+
+    <div id="send-screen" class="hidden">
+        <button onclick="location.reload()" style="background:none; color:grey; float:left;">← Back</button>
+        <h3>Draw to your House</h3>
+        <div class="grid-wrapper">
+            <div class="landmark">🏠 Home Landmark</div>
+            <canvas id="sendCanvas"></canvas>
+        </div>
+        <div id="send-turns" class="turn-chips">-</div>
+        <button class="btn-action" onclick="saveRouteToServer()">SUBMIT & GET PAID</button>
+        <div id="result-id" class="success-box hidden"></div>
+    </div>
+
+    <div id="get-screen" class="hidden">
+        <button onclick="location.reload()" style="background:none; color:grey; float:left;">← Back</button>
+        <h3>Enter Address ID</h3>
+        <input type="text" id="id-input" placeholder="e.g. BAP-A1B2">
+        <button class="btn-action" onclick="startNavigation()">GO!</button>
+    </div>
+
+    <div id="nav-screen" class="hidden">
+        <div id="countdown-area">
+            <p>GET READY...</p>
+            <div id="countdown">3</div>
+        </div>
+        <div id="route-area" class="hidden">
+            <div class="grid-wrapper">
+                <div class="landmark">🏠 Destination</div>
+                <canvas id="getCanvas"></canvas>
+            </div>
+            <div id="get-turns" class="turn-chips" style="font-size:1.5rem"></div>
+            <button class="btn-get" style="width:100%" onclick="finishJourney()">🏆 FINISHED</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API = "http://localhost:8000";
+    let currentPath = [];
+    let currentTurns = [];
+    const gridSize = 40;
+    const cols = 9;
+    const rows = 10;
+
+    function showScreen(type) {
+        document.getElementById('home-screen').classList.add('hidden');
+        document.getElementById(type + '-screen').classList.remove('hidden');
+        if(type === 'send') initCanvas('sendCanvas');
+    }
+
+    function initCanvas(id) {
+        const cvs = document.getElementById(id);
+        const ctx = cvs.getContext('2d');
+        cvs.width = cols * gridSize;
+        cvs.height = rows * gridSize;
+        drawDots(ctx, cvs.width, cvs.height);
+
+        if(id === 'sendCanvas') {
+            cvs.onclick = (e) => {
+                const rect = cvs.getBoundingClientRect();
+                const x = Math.floor((e.clientX - rect.left) / gridSize) * gridSize + gridSize/2;
+                const y = Math.floor((e.clientY - rect.top) / gridSize) * gridSize + gridSize/2;
+                currentPath.push({x, y});
+                if(currentPath.length >= 3) {
+                    const p1 = currentPath[currentPath.length-3];
+                    const p2 = currentPath[currentPath.length-2];
+                    const p3 = currentPath[currentPath.length-1];
+                    const turn = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
+                    if(turn > 0) currentTurns.push("R");
+                    else if(turn < 0) currentTurns.push("L");
+                }
+                document.getElementById('send-turns').innerText = currentTurns.join(" → ");
+                renderPath(ctx, currentPath);
+            };
+        }
+    }
+
+    function drawDots(ctx, w, h) {
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "#cbd5e1";
+        for(let i=0; i<cols; i++) {
+            for(let j=0; j<rows; j++) {
+                ctx.beginPath();
+                ctx.arc(i*gridSize + gridSize/2, j*gridSize + gridSize/2, 2, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+    }
+
+    function renderPath(ctx, path) {
+        if(path.length < 2) return;
+        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 5;
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(path[0].x, path[0].y);
+        path.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+        // Endpoint
+        ctx.fillStyle = "#ef4444";
+        ctx.beginPath();
+        ctx.arc(path[path.length-1].x, path[path.length-1].y, 6, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+    async function saveRouteToServer() {
+        const res = await fetch(`${API}/save-route`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: currentPath, turns: currentTurns})
+        });
+        const data = await res.json();
+        const box = document.getElementById('result-id');
+        box.classList.remove('hidden');
+        box.innerHTML = `<strong>Address ID Created!</strong><br><span style="font-size:1.5rem">${data.address_id}</span><br><small>Share this with Person A</small>`;
+    }
+
+    async function startNavigation() {
+        const id = document.getElementById('id-input').value;
+        try {
+            const res = await fetch(`${API}/get-route/${id}`);
+            if(!res.ok) throw new Error();
+            const data = await res.json();
+            
+            document.getElementById('get-screen').classList.add('hidden');
+            document.getElementById('nav-screen').classList.remove('hidden');
+
+            // Racing Countdown
+            let count = 3;
+            const timer = setInterval(() => {
+                count--;
+                if(count === 0) {
+                    clearInterval(timer);
+                    document.getElementById('countdown-area').classList.add('hidden');
+                    document.getElementById('route-area').classList.remove('hidden');
+                    showFinalRoute(data);
+                } else {
+                    document.getElementById('countdown').innerText = count;
+                }
+            }, 800);
+        } catch(e) { alert("Invalid ID! Try again."); }
+    }
+
+    function showFinalRoute(data) {
+        const cvs = document.getElementById('getCanvas');
+        const ctx = cvs.getContext('2d');
+        cvs.width = cols * gridSize;
+        cvs.height = rows * gridSize;
+        drawDots(ctx, cvs.width, cvs.height);
+        renderPath(ctx, data.path);
+        document.getElementById('get-turns').innerText = data.turns.join(" → ");
+    }
+
+    function finishJourney() {
+        const msg = new SpeechSynthesisUtterance("Excellent work Buddy!");
+        window.speechSynthesis.speak(msg);
+        alert("🏁 Mission Complete! You've reached the destination.");
+        location.reload();
+    }
+</script>
+
+</body>
+</html>
