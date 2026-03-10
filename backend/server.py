@@ -11,7 +11,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory store
 storage = {}
 
 @app.post("/save-route")
@@ -22,7 +21,8 @@ async def save_route(data: dict):
         "landmark": data.get("landmark", "Landmark"),
         "path": data.get("path"),
         "turns": data.get("turns"),
-        "turn_labels": data.get("turn_labels")
+        "turn_labels": data.get("turn_labels"),
+        "rating": None
     }
     return {"address_id": address_id}
 
@@ -32,6 +32,13 @@ async def get_route(address_id: str):
     if not route:
         raise HTTPException(status_code=404, detail="Address ID not found")
     return route
+
+@app.post("/rate-route/{address_id}")
+async def rate_route(address_id: str, data: dict):
+    if address_id in storage:
+        storage[address_id]["rating"] = data.get("rating")
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Route not found")
 
 if __name__ == "__main__":
     import uvicorn
