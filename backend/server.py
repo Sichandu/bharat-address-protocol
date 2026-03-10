@@ -11,18 +11,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Persistent storage for the session (clears on restart)
-# { "BAP-1234": {"path": [...], "turns": [...]} }
+# In-memory store
 storage = {}
 
 @app.post("/save-route")
 async def save_route(data: dict):
-    # Create a simple 4-digit ID for easier typing
-    short_id = str(uuid.uuid4().hex[:4]).upper()
+    short_id = uuid.uuid4().hex[:4].upper()
     address_id = f"BAP-{short_id}"
     storage[address_id] = {
+        "landmark": data.get("landmark", "Landmark"),
         "path": data.get("path"),
-        "turns": data.get("turns")
+        "turns": data.get("turns"),
+        "turn_labels": data.get("turn_labels")
     }
     return {"address_id": address_id}
 
