@@ -1,305 +1,1557 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BAP | Bharat Address Protocol</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0f172a; color: white; overflow-x: hidden; scroll-behavior: smooth; }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .canvas-container { touch-action: none; position: relative; background: #1e293b; border-radius: 1.5rem; overflow: visible; }
-        .turn-input { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.2); width: 75px; text-align: center; border-radius: 8px; padding: 6px; color: #fbbf24; font-weight: bold; font-size: 12px; }
-        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); transition: 0.3s; }
-        .btn-primary:active { transform: scale(0.98); }
-        
-        /* Start Bubble Vector */
-        .bubble-hint {
-            position: absolute; left: 50%; top: -45px; transform: translateX(-50%);
-            background: #3b82f6; color: white; padding: 5px 12px; border-radius: 20px;
-            font-size: 10px; font-weight: 800; text-transform: uppercase; white-space: nowrap;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.5);
-        }
-        .bubble-hint::after {
-            content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
-            border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #3b82f6;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BAP · Bharat Address Protocol</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='28'>📍</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#3b82f6;--blue-d:#1d4ed8;--gold:#f59e0b;--green:#10b981;--red:#ef4444;
+  --bg:#060d1a;--card:rgba(255,255,255,0.025);--border:rgba(255,255,255,0.08);
+  --muted:#475569;--text:#e2e8f0;--inp-bg:rgba(255,255,255,0.04);
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;align-items:flex-start;justify-content:center;
+  padding:1rem 1rem 6rem;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(59,130,246,0.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(59,130,246,0.03) 1px,transparent 1px);
+  background-size:36px 36px;pointer-events:none;z-index:0;
+}
 
-        /* Sidebar Navigation */
-        #sidebar { transition: transform 0.3s ease; transform: translateX(100%); z-index: 100; }
-        #sidebar.open { transform: translateX(0); }
+/* ── CARD ── */
+.card{
+  position:relative;z-index:1;background:var(--card);border:1px solid var(--border);
+  border-radius:2rem;width:100%;max-width:420px;padding:1.5rem;margin-top:1rem;
+  box-shadow:0 32px 80px rgba(0,0,0,0.6),inset 0 0 0 1px rgba(255,255,255,0.04);
+}
 
-        /* Blinking Animation */
-        @keyframes blink-glow {
-            0%, 100% { filter: drop-shadow(0 0 2px #3b82f6); opacity: 1; }
-            50% { filter: drop-shadow(0 0 12px #3b82f6); opacity: 0.6; }
-        }
-        .blinking-dot { animation: blink-glow 1s infinite; }
-    </style>
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;margin-bottom:1.5rem;}
+.logo{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#60a5fa;}
+.logo-sub{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-top:-3px;}
+.icon-btn{
+  width:36px;height:36px;border:1px solid var(--border);border-radius:10px;
+  background:rgba(255,255,255,0.04);cursor:pointer;font-size:1rem;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text);transition:background .2s;flex-shrink:0;
+}
+.icon-btn:hover{background:rgba(255,255,255,0.09);}
+
+/* ── SCREENS ── */
+.scr{display:none;}
+.scr.on{display:block;animation:up .25s ease;}
+@keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── TYPOGRAPHY ── */
+.lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.section{margin-bottom:14px;}
+
+/* ── INPUTS ── */
+.inp{
+  width:100%;background:var(--inp-bg);border:1px solid var(--border);border-radius:12px;
+  padding:13px 15px;color:white;font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none;
+  transition:border-color .2s,background .2s;
+}
+.inp:focus{border-color:rgba(59,130,246,.5);background:rgba(59,130,246,.05);}
+.inp::placeholder{color:rgba(255,255,255,.2);}
+.inp.error{border-color:rgba(239,68,68,.6)!important;background:rgba(239,68,68,.05)!important;}
+
+/* Field error message */
+.field-err{
+  display:none;font-size:11px;font-weight:600;color:var(--red);
+  margin-top:5px;padding:6px 10px;background:rgba(239,68,68,.08);
+  border-radius:8px;border-left:3px solid var(--red);
+}
+.field-err.show{display:block;animation:up .2s ease;}
+
+/* ── BUTTONS ── */
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:13px 18px;border-radius:14px;font-family:'Space Grotesk',sans-serif;
+  font-size:13px;font-weight:700;cursor:pointer;border:none;width:100%;transition:all .2s;
+}
+.btn:disabled{opacity:.4;cursor:not-allowed!important;transform:none!important;}
+.btn-blue{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:white;box-shadow:0 6px 20px rgba(59,130,246,.3);}
+.btn-blue:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 28px rgba(59,130,246,.4);}
+.btn-ghost{background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text);}
+.btn-ghost:hover{background:rgba(255,255,255,.09);}
+.btn-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#fca5a5;}
+.btn-danger:hover{background:rgba(239,68,68,.2);}
+.btn-gold{background:linear-gradient(135deg,#f59e0b,#d97706);color:#1a0800;font-weight:800;box-shadow:0 6px 20px rgba(245,158,11,.25);}
+.btn-gold:hover:not(:disabled){transform:translateY(-1px);}
+.btn-sm{width:auto;padding:7px 14px;font-size:12px;border-radius:10px;}
+.btn-xs{width:auto;padding:5px 10px;font-size:11px;border-radius:8px;}
+.btn-icon{width:36px;height:36px;padding:0;border-radius:10px;flex-shrink:0;}
+
+/* ── HOME TILES ── */
+.tile{
+  display:flex;align-items:center;gap:14px;padding:18px;border-radius:18px;
+  cursor:pointer;border:none;width:100%;text-align:left;
+  font-family:'Space Grotesk',sans-serif;color:white;transition:all .2s;
+}
+.tile-blue{background:linear-gradient(135deg,#3b82f6,#1d4ed8);box-shadow:0 8px 24px rgba(59,130,246,.25);}
+.tile-blue:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(59,130,246,.35);}
+.tile-ghost{background:rgba(255,255,255,.04);border:1px solid var(--border);}
+.tile-ghost:hover{background:rgba(255,255,255,.07);}
+
+/* ── CANVAS ── */
+.cvs-wrap{
+  position:relative;border-radius:14px;overflow:hidden;
+  border:1px solid rgba(59,130,246,.2);background:#08111f;
+  touch-action:none;user-select:none;
+}
+canvas{display:block;width:100%;}
+
+/* START HINT — inside canvas to the right of the dot */
+.start-hint{
+  position:absolute;top:11px;left:50%;transform:translateX(14px);
+  background:rgba(59,130,246,.9);color:white;
+  font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:5;
+}
+.start-hint::before{
+  content:'';position:absolute;right:100%;top:50%;transform:translateY(-50%);
+  border-top:4px solid transparent;border-bottom:4px solid transparent;
+  border-right:5px solid rgba(59,130,246,.9);
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.blink{animation:blink 1.2s ease-in-out infinite;}
+
+/* Canvas toolbar */
+.cvs-toolbar{
+  display:flex;gap:8px;margin-top:8px;
+}
+
+/* ── TURNS TABLE ── */
+.turns-scroll{overflow-x:auto;scrollbar-width:none;}
+.turns-scroll::-webkit-scrollbar{display:none;}
+.turn-inp{
+  background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);
+  width:66px;text-align:center;border-radius:8px;padding:5px 3px;
+  color:#fbbf24;font-weight:700;font-size:11px;
+  font-family:'Space Grotesk',sans-serif;outline:none;
+}
+td{padding:3px 4px;vertical-align:middle;}
+.dc{color:#60a5fa;font-weight:700;font-size:12px;white-space:nowrap;}
+
+/* ── SUCCESS BOX ── */
+.ok-box{
+  background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.2);
+  border-radius:16px;padding:16px;text-align:center;margin-top:14px;
+}
+/* PAID smaller so it fits one row */
+.paid-code{
+  font-family:'Syne',sans-serif;font-size:1.45rem;font-weight:800;letter-spacing:.05em;
+  /* background:linear-gradient(135deg,#fff 40%,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  display:inline-block; */
+  background: linear-gradient(135deg, #fff 40%, #93c5fd);
+
+background-clip: text;          /* Standard property */
+-webkit-background-clip: text;  /* Chrome / Safari */
+
+color: transparent;
+-webkit-text-fill-color: transparent;
+
+letter-spacing: 0.04em;
+display: block;
+margin: 6px 0;
+}
+.paid-row{display:flex;align-items:center;justify-content:center;gap:10px;margin:8px 0;}
+.ok-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
+
+/* ── COUNTDOWN ── */
+.cdnum{font-family:'Syne',sans-serif;font-size:6rem;font-weight:800;color:var(--blue);line-height:1;text-align:center;}
+@keyframes pop{0%{transform:scale(1.5);opacity:0}70%{transform:scale(.95)}100%{transform:scale(1);opacity:1}}
+.pop{animation:pop .35s ease forwards;}
+
+/* ── TIMELINE ── */
+.tl{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px;}
+.tl::-webkit-scrollbar{display:none;}
+.tl-node{flex-shrink:0;padding:7px 12px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;}
+.tl-s{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.25);color:#93c5fd;}
+.tl-t{background:rgba(255,255,255,.05);border:1px solid var(--border);color:#cbd5e1;}
+.tl-e{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fcd34d;}
+.tl-dot{color:var(--muted);font-size:1rem;flex-shrink:0;}
+
+/* ── TEXT ADDRESS ── */
+.txt-addr{
+  background:rgba(255,255,255,.03);border-left:3px solid var(--blue);
+  border-radius:0 10px 10px 0;padding:12px 14px;font-size:13px;color:#94a3b8;line-height:1.7;
+}
+
+/* TTS bar */
+.tts-bar{
+  display:flex;align-items:center;gap:8px;margin-top:8px;padding:10px 14px;
+  background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:10px;
+}
+.tts-bar p{font-size:11px;color:#93c5fd;font-weight:600;flex:1;}
+.tts-btn{
+  width:34px;height:34px;border-radius:8px;border:1px solid rgba(59,130,246,.3);
+  background:rgba(59,130,246,.15);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;font-size:1rem;transition:background .2s;flex-shrink:0;
+}
+.tts-btn:hover{background:rgba(59,130,246,.3);}
+.tts-btn.speaking{background:rgba(59,130,246,.4);animation:pulse-ring 1s ease-in-out infinite;}
+@keyframes pulse-ring{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.4)}50%{box-shadow:0 0 0 6px rgba(59,130,246,0)}}
+
+/* ── RATING ── */
+.rate-box{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;}
+.star{font-size:1.4rem;cursor:pointer;transition:transform .1s;display:inline-block;}
+.star:hover{transform:scale(1.25);}
+
+/* ── SIDEBAR ── */
+#sidebar{
+  position:fixed;top:0;right:0;height:100%;width:270px;
+  background:rgba(4,10,22,.97);backdrop-filter:blur(20px);
+  border-left:1px solid var(--border);transform:translateX(100%);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:200;padding:20px 18px;overflow-y:auto;
+}
+#sidebar.open{transform:translateX(0);}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:190;display:none;}
+#overlay.show{display:block;}
+.sb-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);margin-bottom:8px;
+}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:rgba(15,30,60,.97);border:1px solid rgba(59,130,246,.3);
+  color:white;padding:10px 20px;border-radius:100px;font-size:13px;font-weight:600;
+  z-index:999;font-family:'Space Grotesk',sans-serif;transition:opacity .3s;pointer-events:none;opacity:0;
+  white-space:nowrap;
+}
+
+/* ── UTILS ── */
+.gap{height:12px;}.gap-sm{height:8px;}
+hr{border:none;border-top:1px solid var(--border);margin:16px 0;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.shake{animation:shake .3s ease;}
+
+/* badge pill */
+.pill{display:inline-flex;align-items:center;gap:6px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);border-radius:100px;padding:4px 12px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#93c5fd;}
+</style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body>
 
-    <button onclick="toggleMenu()" class="fixed top-6 right-6 z-[110] p-3 glass rounded-xl">
-        <div class="w-6 h-0.5 bg-white mb-1.5"></div>
-        <div class="w-6 h-0.5 bg-white mb-1.5"></div>
-        <div class="w-6 h-0.5 bg-white"></div>
-    </button>
+<div id="toast"></div>
+<div id="overlay" onclick="closeSidebar()"></div>
 
-    <div id="sidebar" class="fixed top-0 right-0 h-full w-72 glass p-8 shadow-2xl">
-        <h2 class="text-xl font-bold mb-6 text-blue-400">My Addresses</h2>
-        <div id="sidebar-content" class="space-y-4 text-gray-400 text-sm italic">No PAID saved yet.</div>
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <span style="font-family:'Syne',sans-serif;color:#60a5fa;font-weight:800;">MY ADDRESSES</span>
+    <button class="icon-btn" onclick="closeSidebar()">✕</button>
+  </div>
+  <div id="sb-list"><p style="color:var(--muted);font-size:13px;font-style:italic;">No saved PAIDs yet.</p></div>
+</div>
+
+<!-- CARD -->
+<div class="card">
+
+  <!-- Header -->
+  <div class="hdr">
+    <button class="icon-btn" onclick="goHome()" title="Home">🏠</button>
+    <div style="flex:1;text-align:center;">
+      <div class="logo">BAP</div>
+      <div class="logo-sub">Bharat Address Protocol</div>
+    </div>
+    <button class="icon-btn" onclick="openSidebar()" title="Saved addresses">☰</button>
+  </div>
+
+  <!-- ══ HOME ══ -->
+  <div id="home-scr" class="scr on">
+    <div style="text-align:center;margin-bottom:22px;">
+      <div class="pill" style="margin-bottom:10px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;display:inline-block;"></span>
+        Route-based addressing
+      </div>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6;">Turn any location into a shareable<br>navigation code — works without GPS</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="tile tile-blue" onclick="showScr('send')">
+        <span style="font-size:1.6rem;">📤</span>
+        <div>
+          <div style="font-size:1rem;font-weight:700;">SEND</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Draw route · Get your PAID code</div>
+        </div>
+        <span style="margin-left:auto;opacity:.5;font-size:1.1rem;">→</span>
+      </button>
+      <button class="tile tile-ghost" onclick="showScr('get')">
+        <span style="font-size:1.6rem;">📥</span>
+        <div>
+          <div style="font-size:1rem;font-weight:700;">GET</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Enter PAID · Navigate to door</div>
+        </div>
+        <span style="margin-left:auto;opacity:.5;font-size:1.1rem;">→</span>
+      </button>
+    </div>
+    <hr>
+    <p style="text-align:center;font-size:11px;color:var(--muted);">Works where GPS fails · No internet needed to share</p>
+  </div>
+
+  <!-- ══ SEND ══ -->
+  <div id="send-scr" class="scr">
+    <!-- Step 1 -->
+    <div class="section">
+      <span class="lbl">Step 1 — Landmark name</span>
+      <input type="text" id="lm-inp" class="inp" placeholder="e.g. Milk booth, School gate, Temple..."
+             oninput="clearLmError()">
+      <div class="field-err" id="lm-err">⚠ Landmark name is mandatory</div>
     </div>
 
-    <div class="card glass w-full max-w-md p-6 rounded-[2.5rem] relative">
-        <div class="flex items-center mb-6">
-            <button onclick="location.reload()" class="p-2 hover:bg-white/10 rounded-full text-xl">🏠</button>
-            <h1 class="flex-1 text-center text-2xl font-black italic tracking-tighter text-blue-400">BAP.</h1>
-            <div class="w-10"></div>
-        </div>
-
-        <div id="home-screen">
-            <div class="grid gap-4 mt-8">
-                <button onclick="showScreen('send')" class="btn-primary p-6 rounded-3xl text-left shadow-lg">
-                    <span class="text-2xl block font-bold">📤 SEND</span>
-                    <span class="text-blue-100 text-sm opacity-70">Design a route to your door</span>
-                </button>
-                <button onclick="showScreen('get')" class="bg-white/5 hover:bg-white/10 p-6 rounded-3xl text-left border border-white/10">
-                    <span class="text-2xl block font-bold">📥 GET</span>
-                    <span class="text-gray-400 text-sm">Find someone using their PAID</span>
-                </button>
-            </div>
-        </div>
-
-        <div id="send-screen" class="hidden">
-            <input type="text" id="landmark-name" placeholder="Landmark (e.g. Milk Booth)" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl mb-4 outline-none focus:border-blue-500">
-            
-            <div class="canvas-container mx-auto border-2 border-blue-500/20">
-                <div class="bubble-hint blinking-dot">Start from here</div>
-                <canvas id="sendCanvas"></canvas>
-            </div>
-
-            <div class="mt-6 overflow-x-auto pb-4">
-                <table class="mx-auto border-separate border-spacing-x-4">
-                    <tr id="row-inputs"></tr>
-                    <tr id="row-dir" class="text-lg font-bold text-gray-400 whitespace-nowrap"></tr>
-                </table>
-            </div>
-
-            <button onclick="saveRoute()" class="btn-primary w-full p-4 rounded-2xl mt-4 font-bold shadow-xl">SUBMIT & GET PAID</button>
-            
-            <div id="post-submit-box" class="hidden mt-8 p-6 bg-green-500/20 border border-green-500/30 rounded-3xl text-center">
-                <p class="text-xs font-bold text-green-400 uppercase tracking-widest">Address ID Created</p>
-                <span id="new-paid" class="text-3xl font-black block my-2 text-white"></span>
-                <button onclick="copyCurrentPaid()" class="text-sm bg-white/10 px-4 py-2 rounded-lg hover:bg-white/20">Copy PAID</button>
-            </div>
-        </div>
-
-        <div id="get-screen" class="hidden">
-            <input type="text" id="id-input" placeholder="BAP-XXXX" class="w-full bg-white/5 border border-white/20 p-5 rounded-2xl text-2xl text-center font-black tracking-widest mb-6 uppercase">
-            <button onclick="startNavigation()" class="btn-primary w-full p-4 rounded-2xl font-bold shadow-lg">REVEAL MISSION</button>
-        </div>
-
-        <div id="nav-screen" class="hidden text-center">
-            <div id="countdown" class="text-8xl font-black text-blue-500 my-16">3</div>
-            <div id="route-area" class="hidden">
-                <div class="canvas-container mx-auto mb-6">
-                    <canvas id="getCanvas"></canvas>
-                </div>
-                <div id="view-timeline" class="mb-4 p-4 bg-white/5 rounded-2xl overflow-x-auto"></div>
-                <div id="text-address-box" class="mb-6 p-4 bg-white/5 text-gray-400 text-sm text-left rounded-2xl italic border-l-4 border-blue-500"></div>
-                <button onclick="finishJourney()" id="finishBtn" class="w-full bg-yellow-500 text-black p-4 rounded-2xl font-black text-lg shadow-xl hover:bg-yellow-400">🏆 FINISHED</button>
-            </div>
-        </div>
+    <!-- Step 2 -->
+    <div class="section">
+      <span class="lbl">Step 2 — Draw route: landmark → your door</span>
+      <div class="cvs-wrap" id="send-wrap">
+        <div class="start-hint blink" id="start-hint">Start</div>
+        <canvas id="send-cvs"></canvas>
+      </div>
+      <!-- Canvas toolbar: Undo + Clear -->
+      <div class="cvs-toolbar">
+        <button class="btn btn-ghost btn-sm" id="undo-btn" onclick="undoPath()" title="Undo last point">
+          ↩ Undo
+        </button>
+        <button class="btn btn-danger btn-sm" id="clear-btn" onclick="clearPath()" title="Clear route">
+          🗑 Clear
+        </button>
+        <span id="path-len-badge" style="margin-left:auto;font-size:10px;color:var(--muted);align-self:center;font-weight:600;"></span>
+      </div>
     </div>
 
+    <!-- Step 3 (turns) -->
+    <div id="turns-sec" style="display:none;" class="section">
+      <span class="lbl">Step 3 — Label your turns (optional)</span>
+      <div class="turns-scroll">
+        <table><tr id="ti-row"></tr><tr id="td-row"></tr></table>
+      </div>
+    </div>
+
+    <button class="btn btn-blue" id="sub-btn" onclick="saveRoute()">SUBMIT &amp; GET PAID →</button>
+
+    <!-- Success -->
+    <div id="ok-box" style="display:none;" class="ok-box">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#34d399;">Address Created 🎉</span>
+      <div class="paid-row">
+        <span class="paid-code" id="paid-disp">BAP-????</span>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:2px;">Share the link or code with anyone to guide them to you</p>
+      <p id="paid-link-preview" style="font-size:10px;color:#60a5fa;word-break:break-all;margin-bottom:8px;"></p>
+      <div class="ok-actions">
+        <button class="btn btn-ghost btn-sm" onclick="copyPaid()">📋 Copy Code</button>
+        <button class="btn btn-ghost btn-sm" onclick="copyLink()">🔗 Copy Link</button>
+        <button class="btn btn-blue btn-sm" onclick="sharePaid()">↑ Share</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ GET ══ -->
+  <div id="get-scr" class="scr">
+    <span class="lbl">Enter PAID Code</span>
+    <input type="text" id="paid-inp" class="inp"
+           placeholder="BAP-XXXX"
+           style="text-align:center;font-size:1.4rem;font-weight:700;letter-spacing:.2em;"
+           oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'');clearGetErr()">
+    <div class="gap"></div>
+    <button class="btn btn-blue" onclick="startNav()">REVEAL ROUTE →</button>
+    <div id="get-err" style="display:none;" class="field-err show" style="margin-top:10px;">❌ Address not found. Check the PAID code.</div>
+  </div>
+
+  <!-- ══ NAV ══ -->
+  <div id="nav-scr" class="scr">
+    <div id="cd-wrap" style="padding:40px 0;text-align:center;">
+      <p style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Preparing Route</p>
+      <div class="cdnum pop" id="cd-num">3</div>
+    </div>
+
+    <div id="route-area" style="display:none;">
+      <span class="lbl">Route Map</span>
+      <div class="cvs-wrap"><canvas id="get-cvs"></canvas></div>
+      <div class="gap"></div>
+
+      <span class="lbl">Turn-by-Turn</span>
+      <div class="tl" id="tl"></div>
+      <div class="gap"></div>
+
+      <!-- Text route + TTS -->
+      <div class="txt-addr" id="txt-addr"></div>
+      <div class="tts-bar">
+        <p>🔊 Hear the route instructions</p>
+        <button class="tts-btn" id="tts-btn" onclick="toggleTTS()" title="Read route aloud">▶</button>
+        <button class="btn btn-ghost btn-xs" onclick="stopTTS()" title="Stop" style="width:auto;">■ Stop</button>
+      </div>
+      <div class="gap"></div>
+
+      <!-- Rating -->
+      <div class="rate-box" id="rate-box">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Was this route helpful?</p>
+        <div id="stars">
+          <span class="star" onclick="rate(1)">⭐</span>
+          <span class="star" onclick="rate(2)">⭐</span>
+          <span class="star" onclick="rate(3)">⭐</span>
+          <span class="star" onclick="rate(4)">⭐</span>
+          <span class="star" onclick="rate(5)">⭐</span>
+        </div>
+        <div id="rate-ty" style="display:none;font-size:12px;font-weight:700;color:#34d399;margin-top:6px;">Thanks for the feedback! 🙌</div>
+      </div>
+      <div class="gap"></div>
+
+      <button class="btn btn-gold" onclick="finishJourney()">🏆 ARRIVED — FINISH</button>
+    </div>
+  </div>
+
+</div><!-- /card -->
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>
-    const API = "http://localhost:8000";
-    let path = [], turns = [], isDrawing = false;
-    const gridSize = 40, cols = 9, rows = 10;
-    const midX = 4 * gridSize + gridSize/2, midY = gridSize/2;
+'use strict';
 
-    function toggleMenu() { document.getElementById('sidebar').classList.toggle('open'); updateSidebar(); }
+/* ═══════════════════════════════════════
+   CONFIG & UNIVERSAL LINKS
+═══════════════════════════════════════ */
+// Universal API Link - Update this for your backend
+// const API_BASE_URL = "http://localhost:8000"; 
+   const API_BASE_URL = "https://bap-backend-9tyb.onrender.com"; 
 
-    function updateSidebar() {
-        const saved = JSON.parse(localStorage.getItem('bap_history') || "[]");
-        const container = document.getElementById('sidebar-content');
-        if(saved.length === 0) return;
-        container.innerHTML = saved.map(id => `
-            <div class="p-3 bg-white/5 rounded-xl flex justify-between items-center border border-white/10 mb-2">
-                <span class="font-bold text-blue-300">${id}</span>
-                <button onclick="copyManual('${id}')" class="text-xs bg-white/10 px-2 py-1 rounded">Copy</button>
-            </div>
-        `).join('');
+// Change this to your real domain when deploying
+const APP_DOMAIN = window.location.origin || 'https://bap.patlagao.in';
+
+const GRID=40, COLS=9, ROWS=10;
+const CVS_W=COLS*GRID, CVS_H=ROWS*GRID;
+const SX = Math.floor(COLS/2)*GRID + GRID/2;  // 180
+const SY = GRID/2;                              // 20
+
+let path=[], turns=[], drawing=false;
+let curPaid='', curRouteId='', bikeRaf=null;
+let ttsActive=false, plainRouteText='';
+
+/* ═══════════════════════════════════════
+   LOCAL STORAGE DB
+═══════════════════════════════════════ */
+const DB='bap_routes', HIST='bap_hist';
+const dbAll=()=>{try{return JSON.parse(localStorage.getItem(DB)||'{}')}catch(e){return{}}};
+const dbGet=id=>dbAll()[id]||null;
+function dbSave(id,d){const a=dbAll();a[id]=d;localStorage.setItem(DB,JSON.stringify(a));}
+function histAdd(id){let h=histGet();h=[id,...h.filter(x=>x!==id)].slice(0,30);localStorage.setItem(HIST,JSON.stringify(h));}
+const histGet=()=>{try{return JSON.parse(localStorage.getItem(HIST)||'[]')}catch(e){return[]}};
+
+function genId(){
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s='BAP-';for(let i=0;i<4;i++) s+=c[Math.floor(Math.random()*c.length)];
+  return s;
+}
+
+/* ═══════════════════════════════════════
+   DEEP-LINK: auto-load PAID from URL
+═══════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded',()=>{
+  // Support URL like: /BAP-XY3Z  or  /?id=BAP-XY3Z
+  const pathMatch = window.location.pathname.match(/\/(BAP-[A-Z0-9]{4})$/i);
+  const paramId   = new URLSearchParams(window.location.search).get('id');
+  const deepId    = pathMatch ? pathMatch[1].toUpperCase() : (paramId ? paramId.toUpperCase() : null);
+  if(deepId){
+    document.getElementById('paid-inp').value = deepId;
+    showScr('get');
+    setTimeout(startNav, 200);
+  }
+});
+
+/* ═══════════════════════════════════════
+   SCREEN NAVIGATION
+═══════════════════════════════════════ */
+function showScr(name){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById(name+'-scr').classList.add('on');
+  if(name==='send') initSend();
+}
+function goHome(){
+  stopTTS();
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  // Reset send
+  path=[];turns=[];
+  const li=document.getElementById('lm-inp');if(li) li.value='';
+  clearLmError();
+  const ob=document.getElementById('ok-box');if(ob) ob.style.display='none';
+  const ts=document.getElementById('turns-sec');if(ts) ts.style.display='none';
+  // Reset get
+  const pi=document.getElementById('paid-inp');if(pi) pi.value='';
+  clearGetErr();
+  // Reset nav
+  const cw=document.getElementById('cd-wrap');if(cw) cw.style.display='block';
+  const ra=document.getElementById('route-area');if(ra) ra.style.display='none';
+  const cn=document.getElementById('cd-num');if(cn) cn.textContent='3';
+  showScr('home');
+}
+
+/* ═══════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════ */
+function openSidebar(){
+  const h=histGet();
+  const el=document.getElementById('sb-list');
+  if(!h.length){
+    el.innerHTML='<p style="color:var(--muted);font-size:13px;font-style:italic;">No saved PAIDs yet.</p>';
+  } else {
+    el.innerHTML=h.map(id=>`
+      <div class="sb-item">
+        <span style="font-weight:700;color:#60a5fa;font-size:13px;">${id}</span>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-xs" onclick="copyTxt('${id}')">Code</button>
+          <button class="btn btn-blue btn-xs" onclick="loadRoute('${id}')">View</button>
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+function loadRoute(id){
+  closeSidebar();
+  document.getElementById('paid-inp').value=id;
+  showScr('get');
+  setTimeout(startNav,100);
+}
+
+/* ═══════════════════════════════════════
+   SEND — CANVAS INIT
+═══════════════════════════════════════ */
+function initSend(){
+  const wrap=document.getElementById('send-wrap');
+  let old=document.getElementById('send-cvs');
+  if(old) old.remove();
+  const cvs=document.createElement('canvas');
+  cvs.id='send-cvs';cvs.width=CVS_W;cvs.height=CVS_H;
+  wrap.appendChild(cvs);
+  const ctx=cvs.getContext('2d');
+
+  path=[{x:SX,y:SY}];turns=[];
+  document.getElementById('turns-sec').style.display='none';
+  document.getElementById('ok-box').style.display='none';
+  document.getElementById('start-hint').style.display='block';
+  updatePathBadge();
+  drawRoute(ctx,path);
+
+  function snap(v){return Math.floor(v/GRID)*GRID+GRID/2;}
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function getPos(e){
+    const r=cvs.getBoundingClientRect();
+    const sx=CVS_W/r.width, sy=CVS_H/r.height;
+    const src=e.touches?e.touches[0]:e;
+    return{
+      x:clamp(snap((src.clientX-r.left)*sx),GRID/2,CVS_W-GRID/2),
+      y:clamp(snap((src.clientY-r.top)*sy),GRID/2,CVS_H-GRID/2)
+    };
+  }
+  function addPt(e){
+    const p=getPos(e),last=path[path.length-1];
+    if(p.x!==last.x||p.y!==last.y){
+      path.push(p);calcTurns();drawRoute(ctx,path);updatePathBadge();
+      if(path.length>2) document.getElementById('start-hint').style.display='none';
     }
+  }
 
-    function showScreen(screen) {
-        document.getElementById('home-screen').classList.add('hidden');
-        document.getElementById(screen + '-screen').classList.remove('hidden');
-        if(screen === 'send') initSend();
+  cvs.addEventListener('mousedown', ()=>{drawing=true;});
+  cvs.addEventListener('touchstart', e=>{drawing=true;e.preventDefault();},{passive:false});
+  window.addEventListener('mousemove', e=>{if(drawing) addPt(e);});
+  window.addEventListener('touchmove', e=>{if(drawing){addPt(e);e.preventDefault();}},{passive:false});
+  window.addEventListener('mouseup',  ()=>{drawing=false;});
+  window.addEventListener('touchend', ()=>{drawing=false;});
+
+  cvs._ctx=ctx;
+}
+
+function getActiveSendCtx(){
+  const cvs=document.getElementById('send-cvs');
+  return cvs?cvs.getContext('2d'):null;
+}
+
+function undoPath(){
+  if(path.length<=1){showToast('Nothing to undo');return;}
+  path.pop();
+  while(path.length>1){
+    const last=path[path.length-1];
+    if((last.x-GRID/2)%GRID===0&&(last.y-GRID/2)%GRID===0) break;
+    path.pop();
+  }
+  calcTurns();
+  const ctx=getActiveSendCtx();
+  if(ctx) drawRoute(ctx,path);
+  updatePathBadge();
+  if(path.length<=1) document.getElementById('start-hint').style.display='block';
+}
+
+function clearPath(){
+  path=[{x:SX,y:SY}];turns=[];
+  calcTurns();
+  const ctx=getActiveSendCtx();
+  if(ctx) drawRoute(ctx,path);
+  updatePathBadge();
+  document.getElementById('start-hint').style.display='block';
+  document.getElementById('turns-sec').style.display='none';
+}
+
+function updatePathBadge(){
+  const el=document.getElementById('path-len-badge');
+  if(!el) return;
+  const pts=path.length;
+  el.textContent=pts>1?`${pts} pts · ${turns.length} turn${turns.length!==1?'s':''}` : 'Draw your route above';
+}
+
+/* ═══════════════════════════════════════
+   TURNS
+═══════════════════════════════════════ */
+function calcTurns(){
+  turns=[];
+  for(let i=2;i<path.length;i++){
+    const a=path[i-2],b=path[i-1],c=path[i];
+    const x=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+    if(x>0) turns.push('R'); else if(x<0) turns.push('L');
+  }
+  renderTurns();
+  document.getElementById('turns-sec').style.display=turns.length?'block':'none';
+}
+function ord(n){return n===1?'1st':n===2?'2nd':n===3?'3rd':`${n}th`;}
+function renderTurns(){
+  const ir=document.getElementById('ti-row'),dr=document.getElementById('td-row');
+  ir.innerHTML='<td></td>';
+  dr.innerHTML=`<td class="dc" style="color:var(--muted);font-size:11px;">LM</td>`;
+  turns.forEach((t,i)=>{
+    ir.innerHTML+=`<td><input type="text" class="turn-inp" id="ti-${i}" placeholder="${ord(i+1)}"></td>`;
+    dr.innerHTML+=`<td class="dc">→ ${t==='L'?'⬅L':'➡R'}</td>`;
+  });
+  dr.innerHTML+=`<td class="dc" style="color:var(--muted);font-size:11px;">→ DEST</td>`;
+}
+
+/* ═══════════════════════════════════════
+   DRAW ROUTE (shared)
+═══════════════════════════════════════ */
+function drawRoute(ctx,pts){
+  ctx.clearRect(0,0,CVS_W,CVS_H);
+  ctx.fillStyle='#1a2d4a';
+  for(let i=0;i<COLS;i++) for(let j=0;j<ROWS;j++){
+    ctx.beginPath();ctx.arc(i*GRID+GRID/2,j*GRID+GRID/2,1.5,0,Math.PI*2);ctx.fill();
+  }
+  if(pts.length>1){
+    ctx.strokeStyle='rgba(59,130,246,.1)';ctx.lineWidth=14;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+    ctx.strokeStyle='#3b82f6';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+    if(pts.length>6){
+      const step=Math.max(4,Math.floor(pts.length/6));
+      ctx.fillStyle='rgba(147,197,253,.7)';
+      for(let i=step;i<pts.length-1;i+=step){
+        const a=pts[i-1],b=pts[i],ang=Math.atan2(b.y-a.y,b.x-a.x);
+        ctx.save();ctx.translate(b.x,b.y);ctx.rotate(ang);
+        ctx.beginPath();ctx.moveTo(5,0);ctx.lineTo(-3,-3);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();
+        ctx.restore();
+      }
     }
+    const d=pts[pts.length-1];
+    ctx.save();ctx.shadowBlur=14;ctx.shadowColor='#f59e0b';
+    ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.arc(d.x,d.y,7,0,Math.PI*2);ctx.fill();ctx.restore();
+    ctx.font='13px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🏠',d.x,d.y-18);
+  }
+  ctx.save();ctx.shadowBlur=10;ctx.shadowColor='#3b82f6';
+  ctx.fillStyle='#3b82f6';ctx.beginPath();ctx.arc(SX,SY,6,0,Math.PI*2);ctx.fill();ctx.restore();
+}
 
-    function initSend() {
-        const cvs = document.getElementById('sendCanvas');
-        const ctx = cvs.getContext('2d');
-        cvs.width = cols * gridSize; cvs.height = rows * gridSize;
-        path = [{x: midX, y: midY}];
-        renderPath(ctx, path);
+/* ═══════════════════════════════════════
+   VALIDATION HELPERS
+═══════════════════════════════════════ */
+function clearLmError(){
+  document.getElementById('lm-err').classList.remove('show');
+  document.getElementById('lm-inp').classList.remove('error');
+}
+function showLmError(){
+  const err=document.getElementById('lm-err');
+  err.classList.add('show');
+  document.getElementById('lm-inp').classList.add('error');
+  document.getElementById('lm-inp').scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('lm-inp').focus();
+}
+function clearGetErr(){
+  document.getElementById('get-err').style.display='none';
+  document.getElementById('paid-inp').classList.remove('error');
+}
 
-        const getCoords = (e) => {
-            const rect = cvs.getBoundingClientRect();
-            const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-            const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-            return {
-                x: Math.floor(cx / gridSize) * gridSize + gridSize/2,
-                y: Math.floor(cy / gridSize) * gridSize + gridSize/2
-            };
-        };
+/* ═══════════════════════════════════════
+   SAVE ROUTE
+═══════════════════════════════════════ */
+function saveRoute(){
+  const lm=document.getElementById('lm-inp').value.trim();
+  if(!lm){showLmError();return;}
+  if(path.length<4){showToast('Draw a longer route first!');return;}
+  clearLmError();
+  const tl=turns.map((_,i)=>{const e=document.getElementById(`ti-${i}`);return e?e.value.trim():'';});
+  const id=genId();
+  dbSave(id,{landmark:lm,path,turns,turnLabels:tl,createdAt:Date.now()});
+  histAdd(id);
+  curPaid=id;
+  document.getElementById('paid-disp').textContent=id;
+  const link=`${APP_DOMAIN}/${id}`;
+  document.getElementById('paid-link-preview').textContent=link;
+  document.getElementById('ok-box').style.display='block';
+  document.getElementById('ok-box').scrollIntoView({behavior:'smooth',block:'nearest'});
+  showToast('PAID created: '+id);
+}
 
-        const onStart = (e) => { isDrawing = true; };
-        const onMove = (e) => {
-            if(!isDrawing) return;
-            const pos = getCoords(e);
-            if(pos.x < 0 || pos.x > cvs.width || pos.y < 0 || pos.y > cvs.height) return;
-            const last = path[path.length-1];
-            if(pos.x !== last.x || pos.y !== last.y) {
-                path.push(pos);
-                updateTurns();
-                renderPath(ctx, path);
-            }
-        };
-
-        cvs.onmousedown = onStart; cvs.ontouchstart = (e) => { onStart(); e.preventDefault(); };
-        window.onmousemove = onMove; window.ontouchmove = (e) => { onMove(e); e.preventDefault(); };
-        window.onmouseup = window.ontouchend = () => { isDrawing = false; };
+/* ═══════════════════════════════════════
+   START NAVIGATION
+═══════════════════════════════════════ */
+function startNav(){
+  let raw=document.getElementById('paid-inp').value.trim().toUpperCase();
+  clearGetErr();
+  if(!raw){shake('paid-inp');return;}
+  if(!raw.startsWith('BAP-')&&raw.length===4) raw='BAP-'+raw;
+  const data=dbGet(raw);
+  if(!data){
+    document.getElementById('get-err').style.display='block';
+    document.getElementById('paid-inp').classList.add('error');
+    shake('paid-inp');
+    return;
+  }
+  curRouteId=raw;
+  showScr('nav');
+  document.getElementById('cd-wrap').style.display='block';
+  document.getElementById('route-area').style.display='none';
+  let c=3;
+  const el=document.getElementById('cd-num');
+  el.textContent=c;
+  const t=setInterval(()=>{
+    c--;
+    if(c<=0){
+      clearInterval(t);
+      document.getElementById('cd-wrap').style.display='none';
+      document.getElementById('route-area').style.display='block';
+      displayRoute(data);
+    } else {
+      el.textContent=c;
+      el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');
     }
+  },800);
+}
 
-    function updateTurns() {
-        turns = [];
-        for(let i=2; i < path.length; i++) {
-            const p1 = path[i-2], p2 = path[i-1], p3 = path[i];
-            const val = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
-            if(val > 0) turns.push("R"); else if(val < 0) turns.push("L");
-        }
-        renderTable();
+/* ═══════════════════════════════════════
+   DISPLAY ROUTE
+═══════════════════════════════════════ */
+function displayRoute(data){
+  const cvs=document.getElementById('get-cvs');
+  const ctx=cvs.getContext('2d');
+  cvs.width=CVS_W;cvs.height=CVS_H;
+  drawRoute(ctx,data.path);
+
+  let tlH=`<div class="tl-node tl-s">📍 ${esc(data.landmark||'Landmark')}</div>`;
+  let htmlAddr=`From <strong>${esc(data.landmark||'the landmark')}</strong>, go straight. `;
+  let plainAddr=`From ${data.landmark||'the landmark'}, go straight. `;
+
+  (data.turns||[]).forEach((t,i)=>{
+    const lbl=(data.turnLabels&&data.turnLabels[i])?data.turnLabels[i]:ord(i+1);
+    const dir=t==='L'?'Left ⬅':'Right ➡';
+    tlH+=`<span class="tl-dot">·</span><div class="tl-node tl-t">${esc(lbl)} ${dir}</div>`;
+    htmlAddr+=`Take the <strong>${esc(lbl)} ${t==='L'?'left':'right'}</strong>. `;
+    plainAddr+=`Take the ${lbl} ${t==='L'?'left':'right'}. `;
+  });
+  tlH+=`<span class="tl-dot">·</span><div class="tl-node tl-e">🏠 Destination</div>`;
+  htmlAddr+='You have arrived at your destination.';
+  plainAddr+='You have arrived at your destination.';
+
+  document.getElementById('tl').innerHTML=tlH;
+  document.getElementById('txt-addr').innerHTML=htmlAddr;
+  plainRouteText=plainAddr;
+  document.getElementById('stars').style.display='block';
+  document.getElementById('rate-ty').style.display='none';
+
+  startBike(ctx,data.path);
+}
+
+/* ═══════════════════════════════════════
+   TTS — TEXT TO SPEECH
+═══════════════════════════════════════ */
+function toggleTTS(){
+  if(ttsActive){stopTTS();}
+  else{startTTS();}
+}
+function startTTS(){
+  if(!window.speechSynthesis||!plainRouteText) return;
+  window.speechSynthesis.cancel();
+  const utt=new SpeechSynthesisUtterance(plainRouteText);
+  utt.rate=0.88;utt.pitch=1;utt.volume=1;
+  const voices=window.speechSynthesis.getVoices();
+  const pref=voices.find(v=>/en[-_](IN|GB)/i.test(v.lang))||voices.find(v=>/en/i.test(v.lang));
+  if(pref) utt.voice=pref;
+  utt.onstart=()=>{ttsActive=true;updateTTSBtn();};
+  utt.onend=utt.onerror=()=>{ttsActive=false;updateTTSBtn();};
+  window.speechSynthesis.speak(utt);
+}
+function stopTTS(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  ttsActive=false;updateTTSBtn();
+}
+function updateTTSBtn(){
+  const btn=document.getElementById('tts-btn');
+  if(!btn) return;
+  if(ttsActive){btn.textContent='⏸';btn.classList.add('speaking');}
+  else{btn.textContent='▶';btn.classList.remove('speaking');}
+}
+
+/* ═══════════════════════════════════════
+   BIKE ANIMATION 🛵
+═══════════════════════════════════════ */
+function startBike(ctx,pts){
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  const smooth=interp(pts,10);
+  let i=0;
+  const SPEED=1;
+
+  function frame(){
+    if(i>=smooth.length){
+      drawRoute(ctx,pts);
+      drawScooter(ctx,smooth[smooth.length-1].x,smooth[smooth.length-1].y,0);
+      return;
     }
+    drawRoute(ctx,pts);
+    const cur=smooth[i],nxt=smooth[Math.min(i+1,smooth.length-1)];
+    drawScooter(ctx,cur.x,cur.y,Math.atan2(nxt.y-cur.y,nxt.x-cur.x));
+    i+=SPEED;
+    bikeRaf=requestAnimationFrame(frame);
+  }
+  setTimeout(()=>{bikeRaf=requestAnimationFrame(frame);},600);
+}
 
-    function renderTable() {
-        const rowDir = document.getElementById('row-dir');
-        const rowInp = document.getElementById('row-inputs');
-        rowDir.innerHTML = '<td>LM</td>';
-        rowInp.innerHTML = '<td>&nbsp;</td>';
-        turns.forEach((t, i) => {
-            rowInp.innerHTML += `<td><input type="text" placeholder="${i+1}st" class="turn-input" id="inp-${i}"></td>`;
-            rowDir.innerHTML += `<td class="text-blue-400">→ ${t}</td>`;
-        });
-        rowDir.innerHTML += '<td>→ D</td>';
-    }
+function interp(pts,s){
+  if(pts.length<2) return pts;
+  const out=[];
+  for(let i=0;i<pts.length-1;i++)
+    for(let t=0;t<s;t++) out.push({
+      x:pts[i].x+(pts[i+1].x-pts[i].x)*(t/s),
+      y:pts[i].y+(pts[i+1].y-pts[i].y)*(t/s)
+    });
+  out.push(pts[pts.length-1]);
+  return out;
+}
 
-    function renderPath(ctx, pArr) {
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        // Draw Dots
-        for(let i=0; i<cols; i++) {
-            for(let j=0; j<rows; j++) {
-                ctx.fillStyle = "#334155"; ctx.beginPath(); ctx.arc(i*gridSize + gridSize/2, j*gridSize + gridSize/2, 2, 0, Math.PI*2); ctx.fill();
-            }
-        }
-        // Draw Route
-        ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 6; ctx.lineCap = "round"; ctx.lineJoin = "round";
-        ctx.beginPath(); ctx.moveTo(pArr[0].x, pArr[0].y);
-        pArr.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
-        
-        // Landmark Glow (Blue)
-        ctx.fillStyle = "#3b82f6"; ctx.beginPath(); ctx.arc(midX, midY, 5, 0, Math.PI*2); ctx.fill();
-        
-        // Destination Glow (Yellow/Gold)
-        if(pArr.length > 1) {
-            ctx.shadowBlur = 10; ctx.shadowColor = "#fbbf24";
-            ctx.fillStyle = "#fbbf24"; ctx.beginPath(); 
-            ctx.arc(pArr[pArr.length-1].x, pArr[pArr.length-1].y, 6, 0, Math.PI*2); 
-            ctx.fill();
-            ctx.shadowBlur = 0; // reset
-        }
-    }
+function drawScooter(ctx,x,y,ang){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+  const g=ctx.createRadialGradient(0,0,2,0,0,18);
+  g.addColorStop(0,'rgba(251,191,36,.5)');
+  g.addColorStop(1,'rgba(251,191,36,0)');
+  ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();ctx.arc(-8,6,5,0,Math.PI*2);
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(-8,6,2,0,Math.PI*2);ctx.fillStyle='#f59e0b';ctx.fill();
+  ctx.beginPath();ctx.arc(8,6,4,0,Math.PI*2);
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(8,6,1.5,0,Math.PI*2);ctx.fillStyle='#f59e0b';ctx.fill();
+  ctx.beginPath();ctx.moveTo(-8,6);ctx.lineTo(8,6);
+  ctx.strokeStyle='rgba(251,191,36,.4)';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-10,4);ctx.lineTo(-10,-2);ctx.lineTo(-4,-9);ctx.lineTo(5,-9);ctx.lineTo(10,-2);ctx.lineTo(10,4);
+  ctx.closePath();
+  ctx.fillStyle='rgba(251,191,36,.18)';ctx.fill();
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=1.8;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(5,-9);ctx.lineTo(10,-2);
+  ctx.strokeStyle='rgba(147,197,253,.6)';ctx.lineWidth=1.2;ctx.stroke();
+  ctx.beginPath();ctx.arc(10.5,-1,2,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,200,.9)';ctx.fill();
+  ctx.beginPath();ctx.arc(4,-5,2.5,0,Math.PI*2);
+  ctx.fillStyle='#f59e0b';ctx.fill();
+  ctx.restore();
+}
 
-    async function saveRoute() {
-        const turn_labels = turns.map((_, i) => document.getElementById(`inp-${i}`).value || `${i+1}st`);
-        const res = await fetch(`${API}/save-route`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({landmark: document.getElementById('landmark-name').value, path, turns, turn_labels})
-        });
-        const data = await res.json();
-        
-        // Save to Sidebar
-        let history = JSON.parse(localStorage.getItem('bap_history') || "[]");
-        history.unshift(data.address_id);
-        localStorage.setItem('bap_history', JSON.stringify([...new Set(history)]));
-        
-        // UI Feedback & Auto Scroll
-        const box = document.getElementById('post-submit-box');
-        document.getElementById('new-paid').innerText = data.address_id;
-        box.classList.remove('hidden');
-        setTimeout(() => box.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-    }
+/* ═══════════════════════════════════════
+   RATING
+═══════════════════════════════════════ */
+function rate(n){
+  const db=dbAll();
+  if(db[curRouteId]){db[curRouteId].rating=n;localStorage.setItem(DB,JSON.stringify(db));}
+  document.getElementById('stars').style.display='none';
+  document.getElementById('rate-ty').style.display='block';
+}
 
-    async function startNavigation() {
-        const id = document.getElementById('id-input').value.toUpperCase();
-        const res = await fetch(`${API}/get-route/${id}`);
-        const data = await res.json();
-        document.getElementById('get-screen').classList.add('hidden');
-        document.getElementById('nav-screen').classList.remove('hidden');
-        let c = 3;
-        const timer = setInterval(() => {
-            if(c === 1) { 
-                clearInterval(timer); 
-                document.getElementById('countdown').classList.add('hidden');
-                document.getElementById('route-area').classList.remove('hidden');
-                displayFinal(data);
-            } else { c--; document.getElementById('countdown').innerText = c; }
-        }, 800);
-    }
+/* ═══════════════════════════════════════
+   FINISH
+═══════════════════════════════════════ */
+function finishJourney(){
+  stopTTS();
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  
+  // Safe confetti call
+  if(typeof confetti === 'function') {
+    confetti({particleCount:200,spread:80,origin:{y:.6}});
+  }
 
-    function displayFinal(data) {
-        const cvs = document.getElementById('getCanvas');
-        const ctx = cvs.getContext('2d');
-        cvs.width = cols * gridSize; cvs.height = rows * gridSize;
-        renderPath(ctx, data.path);
+  try{
+    const m=new SpeechSynthesisUtterance('You have arrived! Excellent work!');
+    window.speechSynthesis.speak(m);
+    m.onend=()=>setTimeout(goHome,600);
+  } catch(e){setTimeout(goHome,2000);}
+}
 
-        let timelineHtml = `<div class="flex gap-4 items-center text-xs font-bold whitespace-nowrap"><span>${data.landmark || "LM"}</span>`;
-        let textAddress = `From <b>${data.landmark || "the landmark"}</b>, go straight. `;
+/* ═══════════════════════════════════════
+   CLIPBOARD / SHARE
+═══════════════════════════════════════ */
+function getShareLink(id){
+  return `${APP_DOMAIN}/${id||curPaid}`;
+}
 
-        data.turns.forEach((t, i) => {
-            timelineHtml += `<div class="bg-blue-500/20 p-2 rounded-lg border border-blue-500/30 text-blue-400">
-                                ${data.turn_labels[i]} ${t === 'L' ? 'Left' : 'Right'}
-                             </div>`;
-            textAddress += `Take the <b>${data.turn_labels[i]} ${t === 'L' ? 'left' : 'right'}</b> and continue straight. `;
-        });
-        
-        timelineHtml += `<span>DEST</span></div>`;
-        textAddress += "Finally, you will reach your destination.";
+function copyPaid(){
+  const id=curPaid||document.getElementById('paid-disp').textContent;
+  copyTxt(id,'Code copied: '+id);
+}
 
-        document.getElementById('view-timeline').innerHTML = timelineHtml;
-        document.getElementById('text-address-box').innerHTML = textAddress;
-    }
+function copyLink(){
+  const link=getShareLink();
+  copyTxt(link,'Link copied!');
+}
 
-    function finishJourney() {
-        // 1. Confetti Burst
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-        
-        // 2. Voice Message
-        const msg = new SpeechSynthesisUtterance("Excellent work Buddy!");
-        window.speechSynthesis.speak(msg);
-        
-        // 3. Redirect to Home after message ends
-        msg.onend = () => {
-            setTimeout(() => location.reload(), 500);
-        };
-    }
+function sharePaid(){
+  const id=curPaid||document.getElementById('paid-disp').textContent;
+  const link=getShareLink(id);
+  const text=`Find me using BAP: ${link}`;
+  if(navigator.share){
+    navigator.share({title:'My BAP Address',text,url:link}).catch(()=>copyTxt(link,'Link copied!'));
+  } else {
+    copyTxt(link,'Link copied!');
+  }
+}
 
-    function copyCurrentPaid() { copyManual(document.getElementById('new-paid').innerText); }
-    function copyManual(txt) { navigator.clipboard.writeText(txt); alert("PAID Copied!"); }
+function copyTxt(t,msg){
+  const done=()=>showToast(msg||'Copied!');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done).catch(()=>fallback(t,msg));
+  } else fallback(t,msg);
+}
+function fallback(t,msg){
+  const ta=Object.assign(document.createElement('textarea'),{value:t});
+  Object.assign(ta.style,{position:'fixed',opacity:'0'});
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');}catch(e){}
+  ta.remove();showToast(msg||'Copied!');
+}
+
+/* ═══════════════════════════════════════
+   UTILS
+═══════════════════════════════════════ */
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.opacity='1';
+  clearTimeout(el._t);el._t=setTimeout(()=>{el.style.opacity='0';},2400);
+}
+function shake(id){
+  const e=document.getElementById(id);
+  if(!e) return;
+  e.classList.add('shake');
+  setTimeout(()=>e.classList.remove('shake'),400);
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// Load voices early
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
+window.speechSynthesis && window.speechSynthesis.addEventListener &&
+  window.speechSynthesis.addEventListener('voiceschanged',()=>window.speechSynthesis.getVoices());
+
+// Dummy confetti function to prevent errors if library is missing
+if(typeof confetti !== 'function') {
+    window.confetti = function() { console.log("Confetti library not loaded."); };
+}
 </script>
+<!-- <script>
+'use strict';
+
+/* ═══════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════ */
+// Change this to your real domain when deploying
+const APP_DOMAIN = window.location.origin || 'https://bap.patlagao.in';
+
+const GRID=40, COLS=9, ROWS=10;
+const CVS_W=COLS*GRID, CVS_H=ROWS*GRID;
+const SX = Math.floor(COLS/2)*GRID + GRID/2;  // 180
+const SY = GRID/2;                              // 20
+
+let path=[], turns=[], drawing=false;
+let curPaid='', curRouteId='', bikeRaf=null;
+let ttsActive=false, plainRouteText='';
+
+/* ═══════════════════════════════════════
+   LOCAL STORAGE DB
+═══════════════════════════════════════ */
+const DB='bap_routes', HIST='bap_hist';
+const dbAll=()=>{try{return JSON.parse(localStorage.getItem(DB)||'{}')}catch(e){return{}}};
+const dbGet=id=>dbAll()[id]||null;
+function dbSave(id,d){const a=dbAll();a[id]=d;localStorage.setItem(DB,JSON.stringify(a));}
+function histAdd(id){let h=histGet();h=[id,...h.filter(x=>x!==id)].slice(0,30);localStorage.setItem(HIST,JSON.stringify(h));}
+const histGet=()=>{try{return JSON.parse(localStorage.getItem(HIST)||'[]')}catch(e){return[]}};
+
+function genId(){
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s='BAP-';for(let i=0;i<4;i++) s+=c[Math.floor(Math.random()*c.length)];
+  return s;
+}
+
+/* ═══════════════════════════════════════
+   DEEP-LINK: auto-load PAID from URL
+═══════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded',()=>{
+  // Support URL like: /BAP-XY3Z  or  /?id=BAP-XY3Z
+  const pathMatch = window.location.pathname.match(/\/(BAP-[A-Z0-9]{4})$/i);
+  const paramId   = new URLSearchParams(window.location.search).get('id');
+  const deepId    = pathMatch ? pathMatch[1].toUpperCase() : (paramId ? paramId.toUpperCase() : null);
+  if(deepId){
+    document.getElementById('paid-inp').value = deepId;
+    showScr('get');
+    setTimeout(startNav, 200);
+  }
+});
+
+/* ═══════════════════════════════════════
+   SCREEN NAVIGATION
+═══════════════════════════════════════ */
+function showScr(name){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById(name+'-scr').classList.add('on');
+  if(name==='send') initSend();
+}
+function goHome(){
+  stopTTS();
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  // Reset send
+  path=[];turns=[];
+  const li=document.getElementById('lm-inp');if(li) li.value='';
+  clearLmError();
+  const ob=document.getElementById('ok-box');if(ob) ob.style.display='none';
+  const ts=document.getElementById('turns-sec');if(ts) ts.style.display='none';
+  // Reset get
+  const pi=document.getElementById('paid-inp');if(pi) pi.value='';
+  clearGetErr();
+  // Reset nav
+  const cw=document.getElementById('cd-wrap');if(cw) cw.style.display='block';
+  const ra=document.getElementById('route-area');if(ra) ra.style.display='none';
+  const cn=document.getElementById('cd-num');if(cn) cn.textContent='3';
+  showScr('home');
+}
+
+/* ═══════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════ */
+function openSidebar(){
+  const h=histGet();
+  const el=document.getElementById('sb-list');
+  if(!h.length){
+    el.innerHTML='<p style="color:var(--muted);font-size:13px;font-style:italic;">No saved PAIDs yet.</p>';
+  } else {
+    el.innerHTML=h.map(id=>`
+      <div class="sb-item">
+        <span style="font-weight:700;color:#60a5fa;font-size:13px;">${id}</span>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-xs" onclick="copyTxt('${id}')">Code</button>
+          <button class="btn btn-blue btn-xs" onclick="loadRoute('${id}')">View</button>
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+function loadRoute(id){
+  closeSidebar();
+  document.getElementById('paid-inp').value=id;
+  showScr('get');
+  setTimeout(startNav,100);
+}
+
+/* ═══════════════════════════════════════
+   SEND — CANVAS INIT
+═══════════════════════════════════════ */
+function initSend(){
+  const wrap=document.getElementById('send-wrap');
+  let old=document.getElementById('send-cvs');
+  if(old) old.remove();
+  const cvs=document.createElement('canvas');
+  cvs.id='send-cvs';cvs.width=CVS_W;cvs.height=CVS_H;
+  wrap.appendChild(cvs);
+  const ctx=cvs.getContext('2d');
+
+  path=[{x:SX,y:SY}];turns=[];
+  document.getElementById('turns-sec').style.display='none';
+  document.getElementById('ok-box').style.display='none';
+  document.getElementById('start-hint').style.display='block';
+  updatePathBadge();
+  drawRoute(ctx,path);
+
+  function snap(v){return Math.floor(v/GRID)*GRID+GRID/2;}
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function getPos(e){
+    const r=cvs.getBoundingClientRect();
+    const sx=CVS_W/r.width, sy=CVS_H/r.height;
+    const src=e.touches?e.touches[0]:e;
+    return{
+      x:clamp(snap((src.clientX-r.left)*sx),GRID/2,CVS_W-GRID/2),
+      y:clamp(snap((src.clientY-r.top)*sy),GRID/2,CVS_H-GRID/2)
+    };
+  }
+  function addPt(e){
+    const p=getPos(e),last=path[path.length-1];
+    if(p.x!==last.x||p.y!==last.y){
+      path.push(p);calcTurns();drawRoute(ctx,path);updatePathBadge();
+      // Hide hint after first move
+      if(path.length>2) document.getElementById('start-hint').style.display='none';
+    }
+  }
+
+  cvs.addEventListener('mousedown', ()=>{drawing=true;});
+  cvs.addEventListener('touchstart', e=>{drawing=true;e.preventDefault();},{passive:false});
+  window.addEventListener('mousemove', e=>{if(drawing) addPt(e);});
+  window.addEventListener('touchmove', e=>{if(drawing){addPt(e);e.preventDefault();}},{passive:false});
+  window.addEventListener('mouseup',  ()=>{drawing=false;});
+  window.addEventListener('touchend', ()=>{drawing=false;});
+
+  // Store ctx ref for undo/clear
+  cvs._ctx=ctx;
+}
+
+function getActiveSendCtx(){
+  const cvs=document.getElementById('send-cvs');
+  return cvs?cvs.getContext('2d'):null;
+}
+
+function undoPath(){
+  if(path.length<=1){showToast('Nothing to undo');return;}
+  // Remove points back to last turn or at least 1 grid step
+  path.pop();
+  // Snap back cleanly — keep removing until we're on a grid centre
+  while(path.length>1){
+    const last=path[path.length-1];
+    if((last.x-GRID/2)%GRID===0&&(last.y-GRID/2)%GRID===0) break;
+    path.pop();
+  }
+  calcTurns();
+  const ctx=getActiveSendCtx();
+  if(ctx) drawRoute(ctx,path);
+  updatePathBadge();
+  if(path.length<=1) document.getElementById('start-hint').style.display='block';
+}
+
+function clearPath(){
+  path=[{x:SX,y:SY}];turns=[];
+  calcTurns();
+  const ctx=getActiveSendCtx();
+  if(ctx) drawRoute(ctx,path);
+  updatePathBadge();
+  document.getElementById('start-hint').style.display='block';
+  document.getElementById('turns-sec').style.display='none';
+}
+
+function updatePathBadge(){
+  const el=document.getElementById('path-len-badge');
+  if(!el) return;
+  const pts=path.length;
+  el.textContent=pts>1?`${pts} pts · ${turns.length} turn${turns.length!==1?'s':''}` : 'Draw your route above';
+}
+
+/* ═══════════════════════════════════════
+   TURNS
+═══════════════════════════════════════ */
+function calcTurns(){
+  turns=[];
+  for(let i=2;i<path.length;i++){
+    const a=path[i-2],b=path[i-1],c=path[i];
+    const x=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+    if(x>0) turns.push('R'); else if(x<0) turns.push('L');
+  }
+  renderTurns();
+  document.getElementById('turns-sec').style.display=turns.length?'block':'none';
+}
+function ord(n){return n===1?'1st':n===2?'2nd':n===3?'3rd':`${n}th`;}
+function renderTurns(){
+  const ir=document.getElementById('ti-row'),dr=document.getElementById('td-row');
+  ir.innerHTML='<td></td>';
+  dr.innerHTML=`<td class="dc" style="color:var(--muted);font-size:11px;">LM</td>`;
+  turns.forEach((t,i)=>{
+    ir.innerHTML+=`<td><input type="text" class="turn-inp" id="ti-${i}" placeholder="${ord(i+1)}"></td>`;
+    dr.innerHTML+=`<td class="dc">→ ${t==='L'?'⬅L':'➡R'}</td>`;
+  });
+  dr.innerHTML+=`<td class="dc" style="color:var(--muted);font-size:11px;">→ DEST</td>`;
+}
+
+/* ═══════════════════════════════════════
+   DRAW ROUTE (shared)
+═══════════════════════════════════════ */
+function drawRoute(ctx,pts){
+  ctx.clearRect(0,0,CVS_W,CVS_H);
+  // Grid dots
+  ctx.fillStyle='#1a2d4a';
+  for(let i=0;i<COLS;i++) for(let j=0;j<ROWS;j++){
+    ctx.beginPath();ctx.arc(i*GRID+GRID/2,j*GRID+GRID/2,1.5,0,Math.PI*2);ctx.fill();
+  }
+  if(pts.length>1){
+    // Glow shadow
+    ctx.strokeStyle='rgba(59,130,246,.1)';ctx.lineWidth=14;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+    // Line
+    ctx.strokeStyle='#3b82f6';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+    // Arrows
+    if(pts.length>6){
+      const step=Math.max(4,Math.floor(pts.length/6));
+      ctx.fillStyle='rgba(147,197,253,.7)';
+      for(let i=step;i<pts.length-1;i+=step){
+        const a=pts[i-1],b=pts[i],ang=Math.atan2(b.y-a.y,b.x-a.x);
+        ctx.save();ctx.translate(b.x,b.y);ctx.rotate(ang);
+        ctx.beginPath();ctx.moveTo(5,0);ctx.lineTo(-3,-3);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();
+        ctx.restore();
+      }
+    }
+    // Destination
+    const d=pts[pts.length-1];
+    ctx.save();ctx.shadowBlur=14;ctx.shadowColor='#f59e0b';
+    ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.arc(d.x,d.y,7,0,Math.PI*2);ctx.fill();ctx.restore();
+    ctx.font='13px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🏠',d.x,d.y-18);
+  }
+  // Start dot
+  ctx.save();ctx.shadowBlur=10;ctx.shadowColor='#3b82f6';
+  ctx.fillStyle='#3b82f6';ctx.beginPath();ctx.arc(SX,SY,6,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+
+/* ═══════════════════════════════════════
+   VALIDATION HELPERS
+═══════════════════════════════════════ */
+function clearLmError(){
+  document.getElementById('lm-err').classList.remove('show');
+  document.getElementById('lm-inp').classList.remove('error');
+}
+function showLmError(){
+  const err=document.getElementById('lm-err');
+  err.classList.add('show');
+  document.getElementById('lm-inp').classList.add('error');
+  document.getElementById('lm-inp').scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('lm-inp').focus();
+}
+function clearGetErr(){
+  document.getElementById('get-err').style.display='none';
+  document.getElementById('paid-inp').classList.remove('error');
+}
+
+/* ═══════════════════════════════════════
+   SAVE ROUTE
+═══════════════════════════════════════ */
+function saveRoute(){
+  const lm=document.getElementById('lm-inp').value.trim();
+  if(!lm){showLmError();return;}
+  if(path.length<4){showToast('Draw a longer route first!');return;}
+  clearLmError();
+  const tl=turns.map((_,i)=>{const e=document.getElementById(`ti-${i}`);return e?e.value.trim():'';});
+  const id=genId();
+  dbSave(id,{landmark:lm,path,turns,turnLabels:tl,createdAt:Date.now()});
+  histAdd(id);
+  curPaid=id;
+  document.getElementById('paid-disp').textContent=id;
+  const link=`${APP_DOMAIN}/${id}`;
+  document.getElementById('paid-link-preview').textContent=link;
+  document.getElementById('ok-box').style.display='block';
+  document.getElementById('ok-box').scrollIntoView({behavior:'smooth',block:'nearest'});
+  showToast('PAID created: '+id);
+}
+
+/* ═══════════════════════════════════════
+   START NAVIGATION
+═══════════════════════════════════════ */
+function startNav(){
+  let raw=document.getElementById('paid-inp').value.trim().toUpperCase();
+  clearGetErr();
+  if(!raw){shake('paid-inp');return;}
+  if(!raw.startsWith('BAP-')&&raw.length===4) raw='BAP-'+raw;
+  const data=dbGet(raw);
+  if(!data){
+    document.getElementById('get-err').style.display='block';
+    document.getElementById('paid-inp').classList.add('error');
+    shake('paid-inp');
+    return;
+  }
+  curRouteId=raw;
+  showScr('nav');
+  document.getElementById('cd-wrap').style.display='block';
+  document.getElementById('route-area').style.display='none';
+  let c=3;
+  const el=document.getElementById('cd-num');
+  el.textContent=c;
+  const t=setInterval(()=>{
+    c--;
+    if(c<=0){
+      clearInterval(t);
+      document.getElementById('cd-wrap').style.display='none';
+      document.getElementById('route-area').style.display='block';
+      displayRoute(data);
+    } else {
+      el.textContent=c;
+      el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');
+    }
+  },800);
+}
+
+/* ═══════════════════════════════════════
+   DISPLAY ROUTE
+═══════════════════════════════════════ */
+function displayRoute(data){
+  const cvs=document.getElementById('get-cvs');
+  const ctx=cvs.getContext('2d');
+  cvs.width=CVS_W;cvs.height=CVS_H;
+  drawRoute(ctx,data.path);
+
+  let tlH=`<div class="tl-node tl-s">📍 ${esc(data.landmark||'Landmark')}</div>`;
+  let htmlAddr=`From <strong>${esc(data.landmark||'the landmark')}</strong>, go straight. `;
+  let plainAddr=`From ${data.landmark||'the landmark'}, go straight. `;
+
+  (data.turns||[]).forEach((t,i)=>{
+    const lbl=(data.turnLabels&&data.turnLabels[i])?data.turnLabels[i]:ord(i+1);
+    const dir=t==='L'?'Left ⬅':'Right ➡';
+    tlH+=`<span class="tl-dot">·</span><div class="tl-node tl-t">${esc(lbl)} ${dir}</div>`;
+    htmlAddr+=`Take the <strong>${esc(lbl)} ${t==='L'?'left':'right'}</strong>. `;
+    plainAddr+=`Take the ${lbl} ${t==='L'?'left':'right'}. `;
+  });
+  tlH+=`<span class="tl-dot">·</span><div class="tl-node tl-e">🏠 Destination</div>`;
+  htmlAddr+='You have arrived at your destination.';
+  plainAddr+='You have arrived at your destination.';
+
+  document.getElementById('tl').innerHTML=tlH;
+  document.getElementById('txt-addr').innerHTML=htmlAddr;
+  plainRouteText=plainAddr;
+  document.getElementById('stars').style.display='block';
+  document.getElementById('rate-ty').style.display='none';
+
+  startBike(ctx,data.path);
+}
+
+/* ═══════════════════════════════════════
+   TTS — TEXT TO SPEECH
+═══════════════════════════════════════ */
+function toggleTTS(){
+  if(ttsActive){stopTTS();}
+  else{startTTS();}
+}
+function startTTS(){
+  if(!window.speechSynthesis||!plainRouteText) return;
+  window.speechSynthesis.cancel();
+  const utt=new SpeechSynthesisUtterance(plainRouteText);
+  utt.rate=0.88;utt.pitch=1;utt.volume=1;
+  // Prefer a local Indian English voice if available
+  const voices=window.speechSynthesis.getVoices();
+  const pref=voices.find(v=>/en[-_](IN|GB)/i.test(v.lang))||voices.find(v=>/en/i.test(v.lang));
+  if(pref) utt.voice=pref;
+  utt.onstart=()=>{ttsActive=true;updateTTSBtn();};
+  utt.onend=utt.onerror=()=>{ttsActive=false;updateTTSBtn();};
+  window.speechSynthesis.speak(utt);
+}
+function stopTTS(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  ttsActive=false;updateTTSBtn();
+}
+function updateTTSBtn(){
+  const btn=document.getElementById('tts-btn');
+  if(!btn) return;
+  if(ttsActive){btn.textContent='⏸';btn.classList.add('speaking');}
+  else{btn.textContent='▶';btn.classList.remove('speaking');}
+}
+
+/* ═══════════════════════════════════════
+   BIKE ANIMATION 🛵
+═══════════════════════════════════════ */
+function startBike(ctx,pts){
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  const smooth=interp(pts,10); // more steps = slower, smoother
+  let i=0;
+  const SPEED=1; // advance 1 interpolated point per frame (~6px/frame at 60fps)
+
+  function frame(){
+    if(i>=smooth.length){
+      drawRoute(ctx,pts);
+      drawScooter(ctx,smooth[smooth.length-1].x,smooth[smooth.length-1].y,0);
+      return;
+    }
+    drawRoute(ctx,pts);
+    const cur=smooth[i],nxt=smooth[Math.min(i+1,smooth.length-1)];
+    drawScooter(ctx,cur.x,cur.y,Math.atan2(nxt.y-cur.y,nxt.x-cur.x));
+    i+=SPEED;
+    bikeRaf=requestAnimationFrame(frame);
+  }
+  setTimeout(()=>{bikeRaf=requestAnimationFrame(frame);},600);
+}
+
+function interp(pts,s){
+  if(pts.length<2) return pts;
+  const out=[];
+  for(let i=0;i<pts.length-1;i++)
+    for(let t=0;t<s;t++) out.push({
+      x:pts[i].x+(pts[i+1].x-pts[i].x)*(t/s),
+      y:pts[i].y+(pts[i+1].y-pts[i].y)*(t/s)
+    });
+  out.push(pts[pts.length-1]);
+  return out;
+}
+
+/* ── SCOOTER / AUTO-RICKSHAW ICON ── */
+function drawScooter(ctx,x,y,ang){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+
+  // Glow halo
+  const g=ctx.createRadialGradient(0,0,2,0,0,18);
+  g.addColorStop(0,'rgba(251,191,36,.5)');
+  g.addColorStop(1,'rgba(251,191,36,0)');
+  ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+
+  ctx.lineCap='round';ctx.lineJoin='round';
+
+  // Body (auto-rickshaw silhouette)
+  // Rear wheel
+  ctx.beginPath();ctx.arc(-8,6,5,0,Math.PI*2);
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(-8,6,2,0,Math.PI*2);ctx.fillStyle='#f59e0b';ctx.fill();
+
+  // Front wheel
+  ctx.beginPath();ctx.arc(8,6,4,0,Math.PI*2);
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(8,6,1.5,0,Math.PI*2);ctx.fillStyle='#f59e0b';ctx.fill();
+
+  // Axle bar
+  ctx.beginPath();ctx.moveTo(-8,6);ctx.lineTo(8,6);
+  ctx.strokeStyle='rgba(251,191,36,.4)';ctx.lineWidth=1;ctx.stroke();
+
+  // Cabin body
+  ctx.beginPath();
+  ctx.moveTo(-10,4);   // rear bottom
+  ctx.lineTo(-10,-2);  // rear top
+  ctx.lineTo(-4,-9);   // roof rear
+  ctx.lineTo(5,-9);    // roof front
+  ctx.lineTo(10,-2);   // front top (windshield)
+  ctx.lineTo(10,4);    // front bottom
+  ctx.closePath();
+  ctx.fillStyle='rgba(251,191,36,.18)';ctx.fill();
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=1.8;ctx.stroke();
+
+  // Windshield line
+  ctx.beginPath();ctx.moveTo(5,-9);ctx.lineTo(10,-2);
+  ctx.strokeStyle='rgba(147,197,253,.6)';ctx.lineWidth=1.2;ctx.stroke();
+
+  // Headlight
+  ctx.beginPath();ctx.arc(10.5,-1,2,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,200,.9)';ctx.fill();
+
+  // Driver silhouette
+  ctx.beginPath();ctx.arc(4,-5,2.5,0,Math.PI*2);
+  ctx.fillStyle='#f59e0b';ctx.fill();
+
+  ctx.restore();
+}
+
+/* ═══════════════════════════════════════
+   RATING
+═══════════════════════════════════════ */
+function rate(n){
+  const db=dbAll();
+  if(db[curRouteId]){db[curRouteId].rating=n;localStorage.setItem(DB,JSON.stringify(db));}
+  document.getElementById('stars').style.display='none';
+  document.getElementById('rate-ty').style.display='block';
+}
+
+/* ═══════════════════════════════════════
+   FINISH
+═══════════════════════════════════════ */
+function finishJourney(){
+  stopTTS();
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  confetti({particleCount:200,spread:80,origin:{y:.6}});
+  try{
+    const m=new SpeechSynthesisUtterance('You have arrived! Excellent work!');
+    window.speechSynthesis.speak(m);
+    m.onend=()=>setTimeout(goHome,600);
+  } catch(e){setTimeout(goHome,2000);}
+}
+
+/* ═══════════════════════════════════════
+   CLIPBOARD / SHARE
+═══════════════════════════════════════ */
+function getShareLink(id){
+  return `${APP_DOMAIN}/${id||curPaid}`;
+}
+
+function copyPaid(){
+  const id=curPaid||document.getElementById('paid-disp').textContent;
+  copyTxt(id,'Code copied: '+id);
+}
+
+function copyLink(){
+  const link=getShareLink();
+  copyTxt(link,'Link copied!');
+}
+
+function sharePaid(){
+  const id=curPaid||document.getElementById('paid-disp').textContent;
+  const link=getShareLink(id);
+  const text=`Find me using BAP: ${link}`;
+  if(navigator.share){
+    navigator.share({title:'My BAP Address',text,url:link}).catch(()=>copyTxt(link,'Link copied!'));
+  } else {
+    copyTxt(link,'Link copied!');
+  }
+}
+
+function copyTxt(t,msg){
+  const done=()=>showToast(msg||'Copied!');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done).catch(()=>fallback(t,msg));
+  } else fallback(t,msg);
+}
+function fallback(t,msg){
+  const ta=Object.assign(document.createElement('textarea'),{value:t});
+  Object.assign(ta.style,{position:'fixed',opacity:'0'});
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');}catch(e){}
+  ta.remove();showToast(msg||'Copied!');
+}
+
+/* ═══════════════════════════════════════
+   UTILS
+═══════════════════════════════════════ */
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.opacity='1';
+  clearTimeout(el._t);el._t=setTimeout(()=>{el.style.opacity='0';},2400);
+}
+function shake(id){
+  const e=document.getElementById(id);
+  if(!e) return;
+  e.classList.add('shake');
+  setTimeout(()=>e.classList.remove('shake'),400);
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// Load voices early (some browsers are lazy)
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
+window.speechSynthesis && window.speechSynthesis.addEventListener &&
+  window.speechSynthesis.addEventListener('voiceschanged',()=>window.speechSynthesis.getVoices());
+</script> -->
 </body>
 </html>
