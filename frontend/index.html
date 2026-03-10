@@ -417,6 +417,565 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0;}
 'use strict';
 
 /* ═══════════════════════════════════════
+   CONFIG & UNIVERSAL LINKS
+═══════════════════════════════════════ */
+// Universal API Link - Update this for your backend
+// const API_BASE_URL = "http://localhost:8000"; 
+   const API_BASE_URL = "https://bap-backend-9tyb.onrender.com"; 
+
+// Change this to your real domain when deploying
+const APP_DOMAIN = window.location.origin || 'https://bap.patlagao.in';
+
+const GRID=40, COLS=9, ROWS=10;
+const CVS_W=COLS*GRID, CVS_H=ROWS*GRID;
+const SX = Math.floor(COLS/2)*GRID + GRID/2;  // 180
+const SY = GRID/2;                              // 20
+
+let path=[], turns=[], drawing=false;
+let curPaid='', curRouteId='', bikeRaf=null;
+let ttsActive=false, plainRouteText='';
+
+/* ═══════════════════════════════════════
+   LOCAL STORAGE DB
+═══════════════════════════════════════ */
+const DB='bap_routes', HIST='bap_hist';
+const dbAll=()=>{try{return JSON.parse(localStorage.getItem(DB)||'{}')}catch(e){return{}}};
+const dbGet=id=>dbAll()[id]||null;
+function dbSave(id,d){const a=dbAll();a[id]=d;localStorage.setItem(DB,JSON.stringify(a));}
+function histAdd(id){let h=histGet();h=[id,...h.filter(x=>x!==id)].slice(0,30);localStorage.setItem(HIST,JSON.stringify(h));}
+const histGet=()=>{try{return JSON.parse(localStorage.getItem(HIST)||'[]')}catch(e){return[]}};
+
+function genId(){
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s='BAP-';for(let i=0;i<4;i++) s+=c[Math.floor(Math.random()*c.length)];
+  return s;
+}
+
+/* ═══════════════════════════════════════
+   DEEP-LINK: auto-load PAID from URL
+═══════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded',()=>{
+  // Support URL like: /BAP-XY3Z  or  /?id=BAP-XY3Z
+  const pathMatch = window.location.pathname.match(/\/(BAP-[A-Z0-9]{4})$/i);
+  const paramId   = new URLSearchParams(window.location.search).get('id');
+  const deepId    = pathMatch ? pathMatch[1].toUpperCase() : (paramId ? paramId.toUpperCase() : null);
+  if(deepId){
+    document.getElementById('paid-inp').value = deepId;
+    showScr('get');
+    setTimeout(startNav, 200);
+  }
+});
+
+/* ═══════════════════════════════════════
+   SCREEN NAVIGATION
+═══════════════════════════════════════ */
+function showScr(name){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById(name+'-scr').classList.add('on');
+  if(name==='send') initSend();
+}
+function goHome(){
+  stopTTS();
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  // Reset send
+  path=[];turns=[];
+  const li=document.getElementById('lm-inp');if(li) li.value='';
+  clearLmError();
+  const ob=document.getElementById('ok-box');if(ob) ob.style.display='none';
+  const ts=document.getElementById('turns-sec');if(ts) ts.style.display='none';
+  // Reset get
+  const pi=document.getElementById('paid-inp');if(pi) pi.value='';
+  clearGetErr();
+  // Reset nav
+  const cw=document.getElementById('cd-wrap');if(cw) cw.style.display='block';
+  const ra=document.getElementById('route-area');if(ra) ra.style.display='none';
+  const cn=document.getElementById('cd-num');if(cn) cn.textContent='3';
+  showScr('home');
+}
+
+/* ═══════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════ */
+function openSidebar(){
+  const h=histGet();
+  const el=document.getElementById('sb-list');
+  if(!h.length){
+    el.innerHTML='<p style="color:var(--muted);font-size:13px;font-style:italic;">No saved PAIDs yet.</p>';
+  } else {
+    el.innerHTML=h.map(id=>`
+      <div class="sb-item">
+        <span style="font-weight:700;color:#60a5fa;font-size:13px;">${id}</span>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-xs" onclick="copyTxt('${id}')">Code</button>
+          <button class="btn btn-blue btn-xs" onclick="loadRoute('${id}')">View</button>
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+function loadRoute(id){
+  closeSidebar();
+  document.getElementById('paid-inp').value=id;
+  showScr('get');
+  setTimeout(startNav,100);
+}
+
+/* ═══════════════════════════════════════
+   SEND — CANVAS INIT
+═══════════════════════════════════════ */
+function initSend(){
+  const wrap=document.getElementById('send-wrap');
+  let old=document.getElementById('send-cvs');
+  if(old) old.remove();
+  const cvs=document.createElement('canvas');
+  cvs.id='send-cvs';cvs.width=CVS_W;cvs.height=CVS_H;
+  wrap.appendChild(cvs);
+  const ctx=cvs.getContext('2d');
+
+  path=[{x:SX,y:SY}];turns=[];
+  document.getElementById('turns-sec').style.display='none';
+  document.getElementById('ok-box').style.display='none';
+  document.getElementById('start-hint').style.display='block';
+  updatePathBadge();
+  drawRoute(ctx,path);
+
+  function snap(v){return Math.floor(v/GRID)*GRID+GRID/2;}
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function getPos(e){
+    const r=cvs.getBoundingClientRect();
+    const sx=CVS_W/r.width, sy=CVS_H/r.height;
+    const src=e.touches?e.touches[0]:e;
+    return{
+      x:clamp(snap((src.clientX-r.left)*sx),GRID/2,CVS_W-GRID/2),
+      y:clamp(snap((src.clientY-r.top)*sy),GRID/2,CVS_H-GRID/2)
+    };
+  }
+  function addPt(e){
+    const p=getPos(e),last=path[path.length-1];
+    if(p.x!==last.x||p.y!==last.y){
+      path.push(p);calcTurns();drawRoute(ctx,path);updatePathBadge();
+      if(path.length>2) document.getElementById('start-hint').style.display='none';
+    }
+  }
+
+  cvs.addEventListener('mousedown', ()=>{drawing=true;});
+  cvs.addEventListener('touchstart', e=>{drawing=true;e.preventDefault();},{passive:false});
+  window.addEventListener('mousemove', e=>{if(drawing) addPt(e);});
+  window.addEventListener('touchmove', e=>{if(drawing){addPt(e);e.preventDefault();}},{passive:false});
+  window.addEventListener('mouseup',  ()=>{drawing=false;});
+  window.addEventListener('touchend', ()=>{drawing=false;});
+
+  cvs._ctx=ctx;
+}
+
+function getActiveSendCtx(){
+  const cvs=document.getElementById('send-cvs');
+  return cvs?cvs.getContext('2d'):null;
+}
+
+function undoPath(){
+  if(path.length<=1){showToast('Nothing to undo');return;}
+  path.pop();
+  while(path.length>1){
+    const last=path[path.length-1];
+    if((last.x-GRID/2)%GRID===0&&(last.y-GRID/2)%GRID===0) break;
+    path.pop();
+  }
+  calcTurns();
+  const ctx=getActiveSendCtx();
+  if(ctx) drawRoute(ctx,path);
+  updatePathBadge();
+  if(path.length<=1) document.getElementById('start-hint').style.display='block';
+}
+
+function clearPath(){
+  path=[{x:SX,y:SY}];turns=[];
+  calcTurns();
+  const ctx=getActiveSendCtx();
+  if(ctx) drawRoute(ctx,path);
+  updatePathBadge();
+  document.getElementById('start-hint').style.display='block';
+  document.getElementById('turns-sec').style.display='none';
+}
+
+function updatePathBadge(){
+  const el=document.getElementById('path-len-badge');
+  if(!el) return;
+  const pts=path.length;
+  el.textContent=pts>1?`${pts} pts · ${turns.length} turn${turns.length!==1?'s':''}` : 'Draw your route above';
+}
+
+/* ═══════════════════════════════════════
+   TURNS
+═══════════════════════════════════════ */
+function calcTurns(){
+  turns=[];
+  for(let i=2;i<path.length;i++){
+    const a=path[i-2],b=path[i-1],c=path[i];
+    const x=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+    if(x>0) turns.push('R'); else if(x<0) turns.push('L');
+  }
+  renderTurns();
+  document.getElementById('turns-sec').style.display=turns.length?'block':'none';
+}
+function ord(n){return n===1?'1st':n===2?'2nd':n===3?'3rd':`${n}th`;}
+function renderTurns(){
+  const ir=document.getElementById('ti-row'),dr=document.getElementById('td-row');
+  ir.innerHTML='<td></td>';
+  dr.innerHTML=`<td class="dc" style="color:var(--muted);font-size:11px;">LM</td>`;
+  turns.forEach((t,i)=>{
+    ir.innerHTML+=`<td><input type="text" class="turn-inp" id="ti-${i}" placeholder="${ord(i+1)}"></td>`;
+    dr.innerHTML+=`<td class="dc">→ ${t==='L'?'⬅L':'➡R'}</td>`;
+  });
+  dr.innerHTML+=`<td class="dc" style="color:var(--muted);font-size:11px;">→ DEST</td>`;
+}
+
+/* ═══════════════════════════════════════
+   DRAW ROUTE (shared)
+═══════════════════════════════════════ */
+function drawRoute(ctx,pts){
+  ctx.clearRect(0,0,CVS_W,CVS_H);
+  ctx.fillStyle='#1a2d4a';
+  for(let i=0;i<COLS;i++) for(let j=0;j<ROWS;j++){
+    ctx.beginPath();ctx.arc(i*GRID+GRID/2,j*GRID+GRID/2,1.5,0,Math.PI*2);ctx.fill();
+  }
+  if(pts.length>1){
+    ctx.strokeStyle='rgba(59,130,246,.1)';ctx.lineWidth=14;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+    ctx.strokeStyle='#3b82f6';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+    if(pts.length>6){
+      const step=Math.max(4,Math.floor(pts.length/6));
+      ctx.fillStyle='rgba(147,197,253,.7)';
+      for(let i=step;i<pts.length-1;i+=step){
+        const a=pts[i-1],b=pts[i],ang=Math.atan2(b.y-a.y,b.x-a.x);
+        ctx.save();ctx.translate(b.x,b.y);ctx.rotate(ang);
+        ctx.beginPath();ctx.moveTo(5,0);ctx.lineTo(-3,-3);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();
+        ctx.restore();
+      }
+    }
+    const d=pts[pts.length-1];
+    ctx.save();ctx.shadowBlur=14;ctx.shadowColor='#f59e0b';
+    ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.arc(d.x,d.y,7,0,Math.PI*2);ctx.fill();ctx.restore();
+    ctx.font='13px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🏠',d.x,d.y-18);
+  }
+  ctx.save();ctx.shadowBlur=10;ctx.shadowColor='#3b82f6';
+  ctx.fillStyle='#3b82f6';ctx.beginPath();ctx.arc(SX,SY,6,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+
+/* ═══════════════════════════════════════
+   VALIDATION HELPERS
+═══════════════════════════════════════ */
+function clearLmError(){
+  document.getElementById('lm-err').classList.remove('show');
+  document.getElementById('lm-inp').classList.remove('error');
+}
+function showLmError(){
+  const err=document.getElementById('lm-err');
+  err.classList.add('show');
+  document.getElementById('lm-inp').classList.add('error');
+  document.getElementById('lm-inp').scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('lm-inp').focus();
+}
+function clearGetErr(){
+  document.getElementById('get-err').style.display='none';
+  document.getElementById('paid-inp').classList.remove('error');
+}
+
+/* ═══════════════════════════════════════
+   SAVE ROUTE
+═══════════════════════════════════════ */
+function saveRoute(){
+  const lm=document.getElementById('lm-inp').value.trim();
+  if(!lm){showLmError();return;}
+  if(path.length<4){showToast('Draw a longer route first!');return;}
+  clearLmError();
+  const tl=turns.map((_,i)=>{const e=document.getElementById(`ti-${i}`);return e?e.value.trim():'';});
+  const id=genId();
+  dbSave(id,{landmark:lm,path,turns,turnLabels:tl,createdAt:Date.now()});
+  histAdd(id);
+  curPaid=id;
+  document.getElementById('paid-disp').textContent=id;
+  const link=`${APP_DOMAIN}/${id}`;
+  document.getElementById('paid-link-preview').textContent=link;
+  document.getElementById('ok-box').style.display='block';
+  document.getElementById('ok-box').scrollIntoView({behavior:'smooth',block:'nearest'});
+  showToast('PAID created: '+id);
+}
+
+/* ═══════════════════════════════════════
+   START NAVIGATION
+═══════════════════════════════════════ */
+function startNav(){
+  let raw=document.getElementById('paid-inp').value.trim().toUpperCase();
+  clearGetErr();
+  if(!raw){shake('paid-inp');return;}
+  if(!raw.startsWith('BAP-')&&raw.length===4) raw='BAP-'+raw;
+  const data=dbGet(raw);
+  if(!data){
+    document.getElementById('get-err').style.display='block';
+    document.getElementById('paid-inp').classList.add('error');
+    shake('paid-inp');
+    return;
+  }
+  curRouteId=raw;
+  showScr('nav');
+  document.getElementById('cd-wrap').style.display='block';
+  document.getElementById('route-area').style.display='none';
+  let c=3;
+  const el=document.getElementById('cd-num');
+  el.textContent=c;
+  const t=setInterval(()=>{
+    c--;
+    if(c<=0){
+      clearInterval(t);
+      document.getElementById('cd-wrap').style.display='none';
+      document.getElementById('route-area').style.display='block';
+      displayRoute(data);
+    } else {
+      el.textContent=c;
+      el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');
+    }
+  },800);
+}
+
+/* ═══════════════════════════════════════
+   DISPLAY ROUTE
+═══════════════════════════════════════ */
+function displayRoute(data){
+  const cvs=document.getElementById('get-cvs');
+  const ctx=cvs.getContext('2d');
+  cvs.width=CVS_W;cvs.height=CVS_H;
+  drawRoute(ctx,data.path);
+
+  let tlH=`<div class="tl-node tl-s">📍 ${esc(data.landmark||'Landmark')}</div>`;
+  let htmlAddr=`From <strong>${esc(data.landmark||'the landmark')}</strong>, go straight. `;
+  let plainAddr=`From ${data.landmark||'the landmark'}, go straight. `;
+
+  (data.turns||[]).forEach((t,i)=>{
+    const lbl=(data.turnLabels&&data.turnLabels[i])?data.turnLabels[i]:ord(i+1);
+    const dir=t==='L'?'Left ⬅':'Right ➡';
+    tlH+=`<span class="tl-dot">·</span><div class="tl-node tl-t">${esc(lbl)} ${dir}</div>`;
+    htmlAddr+=`Take the <strong>${esc(lbl)} ${t==='L'?'left':'right'}</strong>. `;
+    plainAddr+=`Take the ${lbl} ${t==='L'?'left':'right'}. `;
+  });
+  tlH+=`<span class="tl-dot">·</span><div class="tl-node tl-e">🏠 Destination</div>`;
+  htmlAddr+='You have arrived at your destination.';
+  plainAddr+='You have arrived at your destination.';
+
+  document.getElementById('tl').innerHTML=tlH;
+  document.getElementById('txt-addr').innerHTML=htmlAddr;
+  plainRouteText=plainAddr;
+  document.getElementById('stars').style.display='block';
+  document.getElementById('rate-ty').style.display='none';
+
+  startBike(ctx,data.path);
+}
+
+/* ═══════════════════════════════════════
+   TTS — TEXT TO SPEECH
+═══════════════════════════════════════ */
+function toggleTTS(){
+  if(ttsActive){stopTTS();}
+  else{startTTS();}
+}
+function startTTS(){
+  if(!window.speechSynthesis||!plainRouteText) return;
+  window.speechSynthesis.cancel();
+  const utt=new SpeechSynthesisUtterance(plainRouteText);
+  utt.rate=0.88;utt.pitch=1;utt.volume=1;
+  const voices=window.speechSynthesis.getVoices();
+  const pref=voices.find(v=>/en[-_](IN|GB)/i.test(v.lang))||voices.find(v=>/en/i.test(v.lang));
+  if(pref) utt.voice=pref;
+  utt.onstart=()=>{ttsActive=true;updateTTSBtn();};
+  utt.onend=utt.onerror=()=>{ttsActive=false;updateTTSBtn();};
+  window.speechSynthesis.speak(utt);
+}
+function stopTTS(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  ttsActive=false;updateTTSBtn();
+}
+function updateTTSBtn(){
+  const btn=document.getElementById('tts-btn');
+  if(!btn) return;
+  if(ttsActive){btn.textContent='⏸';btn.classList.add('speaking');}
+  else{btn.textContent='▶';btn.classList.remove('speaking');}
+}
+
+/* ═══════════════════════════════════════
+   BIKE ANIMATION 🛵
+═══════════════════════════════════════ */
+function startBike(ctx,pts){
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  const smooth=interp(pts,10);
+  let i=0;
+  const SPEED=1;
+
+  function frame(){
+    if(i>=smooth.length){
+      drawRoute(ctx,pts);
+      drawScooter(ctx,smooth[smooth.length-1].x,smooth[smooth.length-1].y,0);
+      return;
+    }
+    drawRoute(ctx,pts);
+    const cur=smooth[i],nxt=smooth[Math.min(i+1,smooth.length-1)];
+    drawScooter(ctx,cur.x,cur.y,Math.atan2(nxt.y-cur.y,nxt.x-cur.x));
+    i+=SPEED;
+    bikeRaf=requestAnimationFrame(frame);
+  }
+  setTimeout(()=>{bikeRaf=requestAnimationFrame(frame);},600);
+}
+
+function interp(pts,s){
+  if(pts.length<2) return pts;
+  const out=[];
+  for(let i=0;i<pts.length-1;i++)
+    for(let t=0;t<s;t++) out.push({
+      x:pts[i].x+(pts[i+1].x-pts[i].x)*(t/s),
+      y:pts[i].y+(pts[i+1].y-pts[i].y)*(t/s)
+    });
+  out.push(pts[pts.length-1]);
+  return out;
+}
+
+function drawScooter(ctx,x,y,ang){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+  const g=ctx.createRadialGradient(0,0,2,0,0,18);
+  g.addColorStop(0,'rgba(251,191,36,.5)');
+  g.addColorStop(1,'rgba(251,191,36,0)');
+  ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();ctx.arc(-8,6,5,0,Math.PI*2);
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(-8,6,2,0,Math.PI*2);ctx.fillStyle='#f59e0b';ctx.fill();
+  ctx.beginPath();ctx.arc(8,6,4,0,Math.PI*2);
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(8,6,1.5,0,Math.PI*2);ctx.fillStyle='#f59e0b';ctx.fill();
+  ctx.beginPath();ctx.moveTo(-8,6);ctx.lineTo(8,6);
+  ctx.strokeStyle='rgba(251,191,36,.4)';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-10,4);ctx.lineTo(-10,-2);ctx.lineTo(-4,-9);ctx.lineTo(5,-9);ctx.lineTo(10,-2);ctx.lineTo(10,4);
+  ctx.closePath();
+  ctx.fillStyle='rgba(251,191,36,.18)';ctx.fill();
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=1.8;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(5,-9);ctx.lineTo(10,-2);
+  ctx.strokeStyle='rgba(147,197,253,.6)';ctx.lineWidth=1.2;ctx.stroke();
+  ctx.beginPath();ctx.arc(10.5,-1,2,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,200,.9)';ctx.fill();
+  ctx.beginPath();ctx.arc(4,-5,2.5,0,Math.PI*2);
+  ctx.fillStyle='#f59e0b';ctx.fill();
+  ctx.restore();
+}
+
+/* ═══════════════════════════════════════
+   RATING
+═══════════════════════════════════════ */
+function rate(n){
+  const db=dbAll();
+  if(db[curRouteId]){db[curRouteId].rating=n;localStorage.setItem(DB,JSON.stringify(db));}
+  document.getElementById('stars').style.display='none';
+  document.getElementById('rate-ty').style.display='block';
+}
+
+/* ═══════════════════════════════════════
+   FINISH
+═══════════════════════════════════════ */
+function finishJourney(){
+  stopTTS();
+  if(bikeRaf){cancelAnimationFrame(bikeRaf);bikeRaf=null;}
+  
+  // Safe confetti call
+  if(typeof confetti === 'function') {
+    confetti({particleCount:200,spread:80,origin:{y:.6}});
+  }
+
+  try{
+    const m=new SpeechSynthesisUtterance('You have arrived! Excellent work!');
+    window.speechSynthesis.speak(m);
+    m.onend=()=>setTimeout(goHome,600);
+  } catch(e){setTimeout(goHome,2000);}
+}
+
+/* ═══════════════════════════════════════
+   CLIPBOARD / SHARE
+═══════════════════════════════════════ */
+function getShareLink(id){
+  return `${APP_DOMAIN}/${id||curPaid}`;
+}
+
+function copyPaid(){
+  const id=curPaid||document.getElementById('paid-disp').textContent;
+  copyTxt(id,'Code copied: '+id);
+}
+
+function copyLink(){
+  const link=getShareLink();
+  copyTxt(link,'Link copied!');
+}
+
+function sharePaid(){
+  const id=curPaid||document.getElementById('paid-disp').textContent;
+  const link=getShareLink(id);
+  const text=`Find me using BAP: ${link}`;
+  if(navigator.share){
+    navigator.share({title:'My BAP Address',text,url:link}).catch(()=>copyTxt(link,'Link copied!'));
+  } else {
+    copyTxt(link,'Link copied!');
+  }
+}
+
+function copyTxt(t,msg){
+  const done=()=>showToast(msg||'Copied!');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done).catch(()=>fallback(t,msg));
+  } else fallback(t,msg);
+}
+function fallback(t,msg){
+  const ta=Object.assign(document.createElement('textarea'),{value:t});
+  Object.assign(ta.style,{position:'fixed',opacity:'0'});
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');}catch(e){}
+  ta.remove();showToast(msg||'Copied!');
+}
+
+/* ═══════════════════════════════════════
+   UTILS
+═══════════════════════════════════════ */
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.opacity='1';
+  clearTimeout(el._t);el._t=setTimeout(()=>{el.style.opacity='0';},2400);
+}
+function shake(id){
+  const e=document.getElementById(id);
+  if(!e) return;
+  e.classList.add('shake');
+  setTimeout(()=>e.classList.remove('shake'),400);
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// Load voices early
+if(window.speechSynthesis) window.speechSynthesis.getVoices();
+window.speechSynthesis && window.speechSynthesis.addEventListener &&
+  window.speechSynthesis.addEventListener('voiceschanged',()=>window.speechSynthesis.getVoices());
+
+// Dummy confetti function to prevent errors if library is missing
+if(typeof confetti !== 'function') {
+    window.confetti = function() { console.log("Confetti library not loaded."); };
+}
+</script>
+<!-- <script>
+'use strict';
+
+/* ═══════════════════════════════════════
    CONFIG
 ═══════════════════════════════════════ */
 // Change this to your real domain when deploying
@@ -993,6 +1552,6 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 if(window.speechSynthesis) window.speechSynthesis.getVoices();
 window.speechSynthesis && window.speechSynthesis.addEventListener &&
   window.speechSynthesis.addEventListener('voiceschanged',()=>window.speechSynthesis.getVoices());
-</script>
+</script> -->
 </body>
 </html>
